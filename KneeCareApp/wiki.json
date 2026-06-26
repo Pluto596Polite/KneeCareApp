@@ -1,0 +1,18 @@
+{
+  "schedules": [
+    {"code": "S3", "label": "Schedule 3", "note": "Pharmacist-controlled medicine. In this list: Colcibra (celecoxib)."},
+    {"code": "S4", "label": "Schedule 4", "note": "Prescription medicine. In this list: Axolta (rivaroxaban)."},
+    {"code": "S5", "label": "Schedule 5", "note": "Prescription medicine with stricter controls (often sedating). In this list: Belanex, Dynapayne."},
+    {"code": "S6", "label": "Schedule 6", "note": "Tightly controlled (e.g. strong opioids). In this list: Xonoco XR (oxycodone/naloxone)."}
+  ],
+  "glossary": [
+    {"term": "Anticoagulant / Blood thinner", "def": "Medicine that prevents blood clots forming in the veins (DVT) after surgery. Watch for unusual bleeding or bruising."},
+    {"term": "NSAID", "def": "Non-Steroidal Anti-Inflammatory Drug. Reduces pain AND swelling. Take with food to protect the stomach."},
+    {"term": "Opioid", "def": "Strong painkiller for moderate-to-severe pain. Can cause drowsiness and constipation. Used short-term and carefully."},
+    {"term": "PRN / 'If pain'", "def": "Latin 'pro re nata' = take only when needed (here: only if she has pain), not on a fixed schedule."},
+    {"term": "Every day / Regular", "def": "Must be taken every cycle whether or not there is pain (e.g. the blood thinner and the nerve-pain capsule)."},
+    {"term": "Prolonged-release (XR)", "def": "The tablet releases medicine slowly over ~12 hours. Swallow whole – never crush or chew."},
+    {"term": "With food", "def": "Take during or just after a meal to reduce stomach irritation and improve absorption."},
+    {"term": "DVT", "def": "Deep Vein Thrombosis – a blood clot in a deep leg vein, a key risk after knee surgery, which the blood thinner prevents."}
+  ]
+}

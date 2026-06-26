@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="KneeCare"/>
+<meta name="theme-color" content="#4f46e5"/>
+<title>KneeCare — Recovery Console</title>
+<style>
+  :root{
+    --bg:#f3f5fb; --surface:#ffffff; --surface2:#eef2f8; --border:#e4e8f0;
+    --ink:#0f172a; --ink2:#475569; --muted:#94a3b8;
+    --brand:#4f46e5; --brand-weak:#eef0fe; --brand-700:#4338ca;
+    --good:#16a34a; --good-weak:#e8f6ee; --warn:#b45309; --warn-weak:#fdf3e6;
+    --danger:#dc2626; --danger-weak:#fdecec;
+    --fig:#64748b; --acc:#4f46e5;
+    --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+    --shadow-lg:0 10px 24px rgba(16,24,40,.10);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink2);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--brand);text-decoration:none}
+
+  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+  /* Sidebar */
+  .side{background:#0f172a;color:#cbd5e1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:11px;padding:20px 18px;border-bottom:1px solid #1e293b}
+  .brand .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#6366f1,#4338ca);
+       display:flex;align-items:center;justify-content:center;font-size:18px}
+  .brand b{color:#fff;font-size:16px;letter-spacing:-.01em;display:block}
+  .brand span{font-size:11px;color:#64748b}
+  nav{padding:12px 10px;flex:1}
+  nav button{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;color:#cbd5e1;
+       padding:10px 12px;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer;margin-bottom:2px;text-align:left}
+  nav button .ic{width:20px;text-align:center;font-size:15px;opacity:.9}
+  nav button:hover{background:#1e293b;color:#fff}
+  nav button.active{background:var(--brand);color:#fff;box-shadow:var(--shadow)}
+  .side .foot{padding:14px 16px;border-top:1px solid #1e293b;font-size:11px;color:#64748b}
+  .side .foot b{color:#94a3b8;font-weight:600}
+
+  /* Main */
+  main{min-width:0}
+  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 28px;
+       display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:9}
+  .topbar h2{margin:0;font-size:18px;color:var(--ink);letter-spacing:-.01em}
+  .topbar .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .patient{display:flex;align-items:center;gap:10px;font-size:13px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--brand-weak);color:var(--brand-700);
+       display:flex;align-items:center;justify-content:center;font-weight:700}
+  .content{padding:24px 28px;max-width:1080px}
+
+  /* Generic */
+  .grid{display:grid;gap:16px}
+  .cols2{grid-template-columns:1fr 1fr}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card-h{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .card-h h3{margin:0;font-size:15px;color:var(--ink);display:flex;align-items:center;gap:9px}
+  .card-h .meta{font-size:12px;color:var(--muted)}
+  .card-b{padding:14px 18px}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi .n{font-size:24px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .kpi .bar{height:6px;background:var(--surface2);border-radius:6px;margin-top:10px;overflow:hidden}
+  .kpi .bar>i{display:block;height:100%;background:var(--good);width:0;transition:.4s}
+
+  .item{display:flex;align-items:flex-start;gap:13px;padding:12px;border:1px solid var(--border);border-radius:11px;
+        margin-bottom:9px;cursor:pointer;transition:.13s;background:var(--surface)}
+  .item:hover{border-color:#cdd5e3;box-shadow:var(--shadow)}
+  .item.done{background:var(--good-weak);border-color:#cdeBD8}
+  .item.done .name{text-decoration:line-through;color:var(--muted)}
+  .chk{width:24px;height:24px;border-radius:7px;border:2px solid #cbd5e1;flex:none;margin-top:1px;
+       display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:700}
+  .item.done .chk{background:var(--good);border-color:var(--good)}
+  .name{font-weight:600;color:var(--ink);font-size:14.5px}
+  .meta{font-size:12.5px;color:var(--ink2);margin-top:3px}
+  .qty{color:var(--brand-700);font-weight:600}
+  .sec-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;margin:6px 0 8px}
+
+  .tag{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;
+       background:var(--surface2);color:var(--ink2);border:1px solid var(--border);margin:0 5px 5px 0;cursor:pointer;white-space:nowrap}
+  .tag:hover{border-color:var(--brand);color:var(--brand-700)}
+  .tag.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:7px;vertical-align:middle}
+  .badge.crit{background:var(--danger-weak);color:var(--danger)}
+  .badge.reg{background:var(--good-weak);color:var(--good)}
+  .badge.prn{background:var(--warn-weak);color:var(--warn)}
+  .badge.sched{background:var(--brand-weak);color:var(--brand-700)}
+
+  /* Exercise visuals */
+  .anim{width:100%;max-width:260px;background:var(--surface2);border:1px solid var(--border);border-radius:11px;
+        --fig:#64748b;--acc:#4f46e5}
+  .anim svg{display:block;width:100%;height:auto}
+  .ex-card{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:center;padding:14px;border:1px solid var(--border);
+        border-radius:12px;margin-bottom:12px;background:var(--surface);transition:.13s}
+  .ex-card:hover{box-shadow:var(--shadow)}
+  .ex-card.done{background:var(--good-weak);border-color:#cde8d8}
+  .ex-info h4{margin:0 0 4px;font-size:15px;color:var(--ink)}
+  .ex-info .src{font-size:11px;color:var(--warn);margin-top:6px;background:var(--warn-weak);
+        display:inline-block;padding:2px 8px;border-radius:6px}
+  .ex-cta{margin-top:10px}
+
+  /* Forms */
+  .field{margin-bottom:14px}
+  label.f{display:block;font-size:12.5px;font-weight:600;color:var(--ink2);margin-bottom:5px}
+  input,select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--ink);
+       border-radius:9px;padding:10px 12px;font-size:14px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-weak)}
+  .search{position:relative}
+  .search input{padding-left:38px}
+  .search .si{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted)}
+  .btn{background:var(--brand);color:#fff;border:none;border-radius:9px;padding:10px 16px;font-weight:600;
+       cursor:pointer;font-size:14px;font-family:inherit}
+  .btn:hover{background:var(--brand-700)}
+  .btn.ghost{background:var(--surface);color:var(--ink2);border:1px solid var(--border)}
+  .btn.ghost:hover{border-color:var(--brand);color:var(--brand-700)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  .note{font-size:12.5px;color:var(--ink2);background:var(--warn-weak);border-left:3px solid var(--warn);
+        padding:11px 13px;border-radius:8px;margin-top:10px}
+  .kv{font-size:13.5px;margin:7px 0;color:var(--ink2)}
+  .kv b{color:var(--ink);font-weight:600}
+  .glossary dt{font-weight:700;color:var(--ink);margin-top:12px;font-size:13.5px}
+  .glossary dd{margin:3px 0 0;font-size:13px;color:var(--ink2)}
+  .legend{display:flex;gap:10px;flex-wrap:wrap}
+  .legend .pill{display:flex;gap:8px;align-items:center;background:var(--surface2);border:1px solid var(--border);
+        border-radius:10px;padding:9px 12px;font-size:12.5px}
+  .legend .pill b{color:var(--brand-700)}
+  .empty{text-align:center;color:var(--muted);padding:30px;font-size:13.5px}
+
+  .datebar{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+  .datebar button{background:var(--surface);border:1px solid var(--border);color:var(--ink2);border-radius:8px;
+       width:34px;height:34px;font-size:16px;cursor:pointer}
+  .datebar strong{color:var(--ink);font-size:14px}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:#0f172a;color:#fff;
+         padding:12px 20px;border-radius:11px;font-size:13.5px;box-shadow:var(--shadow-lg);opacity:0;
+         transition:.25s;pointer-events:none;max-width:90%;z-index:50}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:900px){
+    .app{grid-template-columns:1fr}
+    .side{position:static;height:auto;flex-direction:column}
+    nav{display:flex;overflow-x:auto;padding:8px;gap:4px}
+    nav button{flex:none;margin:0;white-space:nowrap}
+    .side .foot{display:none}
+    .kpi-row{grid-template-columns:1fr 1fr}
+    .cols2{grid-template-columns:1fr}
+    .ex-card{grid-template-columns:1fr}
+    .content{padding:18px 16px}
+    .topbar{padding:14px 16px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">🦵</div>
+      <div><b>KneeCare</b><span>Recovery Console</span></div>
+    </div>
+    <nav id="nav">
+      <button data-page="today" class="active"><span class="ic">📋</span> Today</button>
+      <button data-page="exercises"><span class="ic">🤸</span> Exercises</button>
+      <button data-page="meds"><span class="ic">💊</span> Medicines</button>
+      <button data-page="wiki"><span class="ic">📚</span> Wiki</button>
+      <button data-page="settings"><span class="ic">⚙️</span> Settings</button>
+    </nav>
+    <div class="foot">
+      <b>Reminder aid only.</b><br>Always follow the doctor and pharmacist.
+    </div>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div>
+        <h2 id="pageTitle">Today</h2>
+        <div class="sub" id="pageSub">—</div>
+      </div>
+      <div class="patient">
+        <div style="text-align:right">
+          <div style="color:var(--ink);font-weight:600" id="pName">—</div>
+          <div style="font-size:11.5px;color:var(--muted)">Post knee replacement</div>
+        </div>
+        <div class="avatar" id="pAv">M</div>
+      </div>
+    </div>
+    <div class="content" id="view"></div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="exercises_anim.js"></script>
+<script>
+let DATA=null, DAY=todayISO(), PAGE='today', WIKI_Q='', WIKI_TAG='';
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function fmtDay(iso){return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});}
+function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2800);}
+async function api(path,body){const o={method:body?'POST':'GET'};
+  if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body);}
+  return (await fetch(path,o)).json();}
+async function load(){DATA=await api('/api/data?day='+DAY);
+  document.getElementById('pName').textContent=DATA.meds.patient;
+  document.getElementById('pAv').textContent=(DATA.meds.patient||'M').trim()[0];
+  render();}
+
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+  PAGE=b.dataset.page;
+  document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x===b));
+  render();});
+
+const TITLES={today:['Today',''],exercises:['Exercise Programme','Animated guide · tap a card when a set is done'],
+  meds:['Medicine Reference',''],wiki:['Knowledge Base','Search by name, ingredient, purpose or tag'],
+  settings:['Settings','Reminder times & notifications']};
+
+function render(){
+  const [t,s]=TITLES[PAGE];
+  document.getElementById('pageTitle').textContent=t;
+  document.getElementById('pageSub').textContent = PAGE==='today'?fmtDay(DAY):(s||'');
+  const v=document.getElementById('view');
+  v.innerHTML = PAGE==='today'?renderToday():PAGE==='exercises'?renderExercises():
+                PAGE==='meds'?renderMeds():PAGE==='wiki'?renderWiki():renderSettings();
+  injectAnims(); wire();
+}
+function injectAnims(){
+  document.querySelectorAll('[data-anim]').forEach(el=>{
+    el.innerHTML=(window.EX_ANIM&&window.EX_ANIM[el.dataset.anim])||window.EX_ANIM_FALLBACK||'';});
+}
+
+/* ---------- TODAY ---------- */
+function cycleItems(cycle){const o=[];DATA.meds.medicines.forEach(m=>m.cycles.forEach(c=>{if(c.cycle===cycle)o.push({m,c});}));return o;}
+function medItem(m,c,cycle){
+  const key=cycle+':'+m.id, d=!!DATA.state.doses[key];
+  const badge=m.critical?'<span class="badge crit">DO NOT SKIP</span>':
+              (c.regular?'<span class="badge reg">EVERY DAY</span>':'<span class="badge prn">IF PAIN</span>');
+  return `<div class="item ${d?'done':''}" data-dose="${key}">
+    <div class="chk">${d?'✓':''}</div>
+    <div style="flex:1"><div class="name">${esc(m.name)}${badge}</div>
+    <div class="meta"><span class="qty">${esc(c.qty)}</span> · ${esc(m.instructions)}</div></div></div>`;
+}
+function cycleCard(cycle,icon,title,sub){
+  const items=cycleItems(cycle),reg=items.filter(x=>x.c.regular),prn=items.filter(x=>!x.c.regular);
+  const st=DATA.state.doses;let done=items.filter(x=>st[cycle+':'+x.m.id]).length;
+  const blk=(arr,lbl)=>arr.length?`<div class="sec-label">${lbl}</div>`+arr.map(x=>medItem(x.m,x.c,cycle)).join(''):'';
+  return `<div class="card"><div class="card-h"><h3>${icon} ${title}</h3><span class="meta">${done}/${items.length} taken · ${sub}</span></div>
+    <div class="card-b">${blk(reg,'Take now (with food)')}${blk(prn,'Only if she has pain')}</div></div>`;
+}
+function renderToday(){
+  const md=DATA.meds.medicines, st=DATA.state.doses;
+  const total=md.reduce((a,m)=>a+m.cycles.length,0);
+  const taken=Object.values(st).filter(Boolean).length;
+  const ex=DATA.exercises.exercises, exDone=ex.filter(e=>DATA.state.exercises[e.id]).length;
+  const crit=md.find(m=>m.critical), critKey='morning:'+(crit?crit.id:''), critDone=!!st[critKey];
+  const kpi=(n,l,frac,col)=>`<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div>
+    <div class="bar"><i style="width:${frac*100}%;background:${col||'var(--good)'}"></i></div></div>`;
+  let h=`<div class="datebar"><button id="prevDay">‹</button><strong id="dl">${DAY===todayISO()?'Today':fmtDay(DAY)}</strong>
+    <button id="nextDay">›</button></div>`;
+  h+=`<div class="kpi-row">
+    ${kpi(taken+'/'+total,'Medicine doses ticked',total?taken/total:0)}
+    ${kpi(exDone+'/'+ex.length,'Exercises done today',ex.length?exDone/ex.length:0)}
+    ${kpi(critDone?'✓':'Due','Blood thinner (Axolta)',critDone?1:0,critDone?'var(--good)':'var(--danger)')}
+    ${kpi('07:00 / 19:00','Next reminders',1,'var(--brand)')}
+  </div>`;
+  h+=`<div class="grid cols2">${cycleCard('morning','🌅','Morning cycle','breakfast · 07:00')}
+      ${cycleCard('evening','🌙','Evening cycle','dinner · 19:00')}</div>`;
+  h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3>🤸 Exercises</h3>
+      <span class="meta">${exDone}/${ex.length} done · aim 2–3× a day</span></div><div class="card-b">`;
+  ex.forEach(e=>{const d=!!DATA.state.exercises[e.id];
+    h+=`<div class="item ${d?'done':''}" data-ex="${e.id}">
+      <div class="chk">${d?'✓':''}</div>
+      <div class="anim" style="width:96px;flex:none" data-anim="${e.id}"></div>
+      <div style="flex:1"><div class="name">${esc(e.name)}</div>
+      <div class="meta"><span class="qty">${esc(e.reps)}</span> · ${esc(e.detail)}</div></div></div>`;});
+  h+=`</div></div>`;
+  return h;
+}
+
+/* ---------- EXERCISES ---------- */
+function renderExercises(){
+  const ex=DATA.exercises.exercises;
+  let h=`<div class="note" style="margin-bottom:16px">Guidance: exercise 20–30 minutes, 2–3× a day during early recovery. Do exercises lying on your back with legs slightly apart. Animations are illustrative — follow your physiotherapist's technique.</div>`;
+  ex.forEach(e=>{const d=!!DATA.state.exercises[e.id];
+    const src=e.source.startsWith('booklet')?'<span class="src" style="background:var(--good-weak);color:var(--good)">✓ From physio booklet</span>':`<span class="src">⚠ Standard set — confirm with booklet/physio</span>`;
+    h+=`<div class="ex-card ${d?'done':''}">
+      <div class="anim" data-anim="${e.id}"></div>
+      <div class="ex-info"><h4>${esc(e.name)}</h4>
+        <div class="meta"><span class="qty">${esc(e.reps)}</span></div>
+        <div class="meta" style="margin-top:6px">${esc(e.detail)}</div>
+        <div>${src}</div>
+        <div class="ex-cta"><button class="btn ${d?'ghost':''}" data-ex="${e.id}">${d?'✓ Done today':'Mark as done'}</button></div>
+      </div></div>`;});
+  return h;
+}
+
+/* ---------- MEDICINES ---------- */
+function renderMeds(){
+  let h=`<div class="grid">`;
+  DATA.meds.medicines.forEach(m=>{
+    h+=`<div class="card"><div class="card-h"><h3>${esc(m.name)}${m.critical?'<span class="badge crit">DO NOT SKIP</span>':''}</h3>
+      <span class="badge sched">${m.schedule_code}</span></div>
+      <div class="card-b">
+        <div class="kv"><b>${esc(m.active)}</b> · ${esc(m.category)}</div>
+        <div class="kv"><b>Purpose:</b> ${esc(m.purpose)}</div>
+        <div class="kv"><b>How to take:</b> ${esc(m.instructions)}</div>
+        <div class="kv"><b>When:</b> ${m.cycles.map(c=>esc(c.cycle)+' ('+esc(c.qty)+(c.regular?', every day':', if pain')+')').join(' · ')}</div>
+        <div class="kv"><b>With food:</b> ${m.with_food?'Yes':'Not required'}</div>
+        <div style="margin-top:10px">${m.tags.map(t=>`<span class="tag" data-gotag="${esc(t)}">${esc(t)}</span>`).join('')}</div>
+        <div class="note">${esc(m.warnings)}</div>
+      </div></div>`;});
+  h+=`</div>`;
+  return h;
+}
+
+/* ---------- WIKI ---------- */
+function allTags(){const s=new Set();DATA.meds.medicines.forEach(m=>m.tags.forEach(t=>s.add(t)));return [...s].sort();}
+function medMatches(m,q){
+  if(WIKI_TAG && !m.tags.includes(WIKI_TAG))return false;
+  if(!q)return true;
+  const hay=[m.name,m.active,m.category,m.purpose,m.instructions,m.warnings,...m.tags].join(' ').toLowerCase();
+  return hay.includes(q);
+}
+function renderWiki(){
+  const q=WIKI_Q.trim().toLowerCase();
+  const meds=DATA.meds.medicines.filter(m=>medMatches(m,q));
+  const wiki=DATA.wiki||{schedules:[],glossary:[]};
+  const gloss=wiki.glossary.filter(g=>!q||(g.term+' '+g.def).toLowerCase().includes(q));
+  let h=`<div class="search field"><span class="si">🔎</span>
+     <input id="wikiSearch" placeholder="Search medicines by name, ingredient, purpose, tag…" value="${esc(WIKI_Q)}"></div>`;
+  h+=`<div style="margin-bottom:6px" class="sec-label">Filter by tag</div><div style="margin-bottom:18px">
+     ${allTags().map(t=>`<span class="tag ${WIKI_TAG===t?'on':''}" data-tag="${esc(t)}">${esc(t)}</span>`).join('')}
+     ${WIKI_TAG?`<span class="tag on" data-tag="">✕ clear</span>`:''}</div>`;
+  // medicine results
+  h+=`<div class="card"><div class="card-h"><h3>💊 Medicines</h3><span class="meta">${meds.length} result${meds.length!==1?'s':''}</span></div><div class="card-b">`;
+  if(!meds.length)h+=`<div class="empty">No medicines match this search.</div>`;
+  meds.forEach(m=>{
+    h+=`<div class="item" style="cursor:default;align-items:flex-start">
+      <div style="flex:1">
+        <div class="name">${esc(m.name)} <span class="badge sched">${m.schedule_code}</span>
+          ${m.critical?'<span class="badge crit">DO NOT SKIP</span>':''}</div>
+        <div class="meta"><b>${esc(m.active)}</b> — ${esc(m.purpose)}</div>
+        <div class="meta" style="margin-top:3px">${esc(m.instructions)}</div>
+        <div style="margin-top:8px">${m.tags.map(t=>`<span class="tag" data-tag="${esc(t)}">${esc(t)}</span>`).join('')}</div>
+      </div></div>`;});
+  h+=`</div></div>`;
+  // schedule legend
+  h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3>🏷️ Schedule legend</h3></div>
+     <div class="card-b"><div class="legend">${wiki.schedules.map(s=>`<div class="pill"><b>${esc(s.code)}</b><span>${esc(s.note)}</span></div>`).join('')}</div></div></div>`;
+  // glossary
+  h+=`<div class="card" style="margin-top:16px"><div class="card-h"><h3>📖 Glossary</h3><span class="meta">${gloss.length} term${gloss.length!==1?'s':''}</span></div>
+     <div class="card-b"><dl class="glossary">`;
+  if(!gloss.length)h+=`<div class="empty">No terms match this search.</div>`;
+  gloss.forEach(g=>{h+=`<dt>${esc(g.term)}</dt><dd>${esc(g.def)}</dd>`;});
+  h+=`</dl></div></div>`;
+  return h;
+}
+
+/* ---------- SETTINGS ---------- */
+function renderSettings(){
+  const c=DATA.config,n=c.notify;
+  return `<div class="grid cols2">
+   <div class="card"><div class="card-h"><h3>⏰ Reminder times</h3></div><div class="card-b">
+     <div class="field"><label class="f">Morning cycle</label><input id="mt" type="time" value="${c.morning_time}"></div>
+     <div class="field"><label class="f">Evening cycle</label><input id="et" type="time" value="${c.evening_time}"></div>
+     <button class="btn" id="saveTimes">Save times</button></div></div>
+   <div class="card"><div class="card-h"><h3>📲 Notifications</h3><span class="badge sched">Discord</span></div><div class="card-b">
+     <div class="field"><label class="f">Channel</label><select id="ch">
+       <option value="discord" ${n.channel==='discord'?'selected':''}>Discord (recommended)</option>
+       <option value="telegram" ${n.channel==='telegram'?'selected':''}>Telegram</option>
+       <option value="ntfy" ${n.channel==='ntfy'?'selected':''}>ntfy.sh</option>
+       <option value="whatsapp" ${n.channel==='whatsapp'?'selected':''}>WhatsApp (CallMeBot)</option></select></div>
+     <div class="field"><label class="f">Discord webhook URL</label>
+       <input id="wh" placeholder="https://discord.com/api/webhooks/…" value="${esc(n.discord_webhook_url||'')}"></div>
+     <div class="row"><button class="btn" id="saveNotif">Save</button>
+       <button class="btn ghost" id="test">Send test</button>
+       <button class="btn ghost" id="sendM">Preview morning list</button></div>
+     <div class="note">Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy URL. Paste here, Save, then Test.</div>
+   </div></div></div>`;
+}
+
+/* ---------- wiring ---------- */
+function wire(){
+  const g=id=>document.getElementById(id);
+  document.querySelectorAll('[data-dose]').forEach(el=>el.onclick=async()=>{
+    const key=el.dataset.dose,[c,id]=key.split(':'),cur=!!DATA.state.doses[key];
+    DATA.state.doses[key]=!cur;render();
+    await api('/api/dose',{day:DAY,cycle:c,med_id:id,taken:!cur});});
+  document.querySelectorAll('[data-ex]').forEach(el=>el.onclick=async(ev)=>{
+    ev.stopPropagation();const id=el.dataset.ex,cur=!!DATA.state.exercises[id];
+    DATA.state.exercises[id]=!cur;render();
+    await api('/api/exercise',{day:DAY,ex_id:id,done:!cur});});
+  document.querySelectorAll('[data-tag]').forEach(el=>el.onclick=()=>{WIKI_TAG=el.dataset.tag;render();});
+  document.querySelectorAll('[data-gotag]').forEach(el=>el.onclick=()=>{PAGE='wiki';WIKI_TAG=el.dataset.gotag;WIKI_Q='';
+    document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='wiki'));render();});
+  if(g('wikiSearch')){const s=g('wikiSearch');s.oninput=()=>{WIKI_Q=s.value;const p=s.selectionStart;render();
+    const ns=document.getElementById('wikiSearch');if(ns){ns.focus();ns.setSelectionRange(p,p);}};}
+  if(g('prevDay'))g('prevDay').onclick=()=>{DAY=shift(DAY,-1);load();};
+  if(g('nextDay'))g('nextDay').onclick=()=>{if(DAY<todayISO()){DAY=shift(DAY,1);load();}};
+  if(g('saveTimes'))g('saveTimes').onclick=async()=>{await api('/api/config',{morning_time:g('mt').value,evening_time:g('et').value});toast('Reminder times saved');load();};
+  if(g('saveNotif'))g('saveNotif').onclick=async()=>{await api('/api/config',{notify:{channel:g('ch').value,discord_webhook_url:g('wh').value}});toast('Notification settings saved');load();};
+  if(g('test'))g('test').onclick=async()=>{toast('Sending test…');const r=await api('/api/test',{});toast(r.message);};
+  if(g('sendM'))g('sendM').onclick=async()=>{toast('Sending…');const r=await api('/api/notify_cycle',{cycle:'morning'});toast(r.message);};
+}
+function shift(iso,d){const x=new Date(iso+'T00:00:00');x.setDate(x.getDate()+d);return x.toISOString().slice(0,10);}
+load();
+</script>
+</body>
+</html>

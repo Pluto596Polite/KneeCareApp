@@ -1,0 +1,15 @@
+{
+  "_comment": "Exercises. The first block is taken word-for-word from the hospital physio booklet pages that were readable. The 'standard_set' block holds the usual remaining total-knee-replacement exercises as editable placeholders – CONFIRM these against the booklet/physiotherapist and edit reps. General guidance from the booklet: exercise 20–30 minutes, 2–3 times a day during early recovery; do exercises lying on your back with legs slightly apart.",
+  "exercises": [
+    {"id": "breaths", "name": "Deep breaths", "detail": "Take 5 deep breaths to keep the lungs clear (especially hourly when resting in bed).", "reps": "5 breaths, hourly", "source": "booklet"},
+    {"id": "ankle_pumps", "name": "1. Ankle pumps", "detail": "Move your feet up and down rhythmically by tightening the calf and shin muscles. Helps prevent blood clots.", "reps": "20 reps, hourly", "source": "booklet"},
+    {"id": "ankle_rotations", "name": "2. Ankle rotations", "detail": "Move your ankles in circles, clockwise and anticlockwise.", "reps": "10 reps, hourly", "source": "booklet"},
+    {"id": "quad_sets", "name": "3. Quadriceps sets (static quads)", "detail": "Lying down, tighten the thigh muscle and press the back of the knee down into the bed. Hold, then relax.", "reps": "Hold 5s ×10", "source": "standard_set – confirm with booklet/physio"},
+    {"id": "glute_sets", "name": "4. Gluteal sets", "detail": "Squeeze your buttock muscles together, hold, then relax.", "reps": "Hold 5s ×10", "source": "standard_set – confirm with booklet/physio"},
+    {"id": "heel_slides", "name": "5. Heel slides", "detail": "Slide the heel of the operated leg up towards the buttock to bend the knee, then slide back down.", "reps": "10 reps", "source": "standard_set – confirm with booklet/physio"},
+    {"id": "slr", "name": "6. Straight leg raises", "detail": "With the knee straight, lift the whole leg a few inches off the bed, hold, then lower slowly.", "reps": "10 reps", "source": "standard_set – confirm with booklet/physio"},
+    {"id": "short_arc", "name": "7. Short-arc quads", "detail": "Place a rolled towel under the knee; straighten the knee by lifting the foot, keeping the knee on the towel. Hold, then lower.", "reps": "Hold 5s ×10", "source": "standard_set – confirm with booklet/physio"},
+    {"id": "knee_ext", "name": "8. Knee extension stretch", "detail": "Sit with the heel propped on a stool and the knee unsupported; let the knee straighten under its own weight.", "reps": "Hold 1–2 min", "source": "standard_set – confirm with booklet/physio"},
+    {"id": "seated_bends", "name": "9. Seated knee bends", "detail": "Sitting on a firm chair, slide the foot back to bend the knee as far as comfortable, then straighten.", "reps": "10 reps", "source": "standard_set – confirm with booklet/physio"}
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "_comment": "Medicine data read from the dispensary labels (Life St George's Hospital, patient Van Wyk, Marie-Jean) and verified against South African product info. Edit freely. 'cycle' = morning/evening, 'regular' = must take every time, otherwise PRN (only when in pain).",
+  "patient": "Marie-Jean van Wyk",
+  "medicines": [
+    {
+      "id": "axolta",
+      "name": "Axolta 10 mg",
+      "active": "Rivaroxaban 10 mg",
+      "schedule_code": "S4",
+      "category": "Anticoagulant",
+      "purpose": "Blood thinner – prevents blood clots (DVT) in the legs after surgery.",
+      "instructions": "Take 1 tablet ONCE daily WITH food. Complete the full course – do NOT skip a dose.",
+      "cycles": [{"cycle": "morning", "qty": "1 tablet", "regular": true}],
+      "critical": true,
+      "with_food": true,
+      "warnings": "Most important medicine to not miss. Tell the doctor about any unusual bleeding or bruising.",
+      "tags": ["Blood thinner", "Anticoagulant", "Do not skip", "With food", "Every day", "Once daily", "Schedule S4"]
+    },
+    {
+      "id": "belanex",
+      "name": "Belanex 75 mg",
+      "active": "Pregabalin 75 mg",
+      "schedule_code": "S5",
+      "category": "Nerve-pain agent",
+      "purpose": "Calms nerve pain after the knee surgery.",
+      "instructions": "Take 1 capsule TWICE a day (every 12 hours).",
+      "cycles": [
+        {"cycle": "morning", "qty": "1 capsule", "regular": true},
+        {"cycle": "evening", "qty": "1 capsule", "regular": true}
+      ],
+      "critical": false,
+      "with_food": false,
+      "warnings": "May cause drowsiness/dizziness. Do not stop suddenly.",
+      "tags": ["Nerve pain", "Drowsiness", "Every day", "Twice daily", "Schedule S5"]
+    },
+    {
+      "id": "colcibra",
+      "name": "Colcibra 200 mg",
+      "active": "Celecoxib 200 mg",
+      "schedule_code": "S3",
+      "category": "Anti-inflammatory (NSAID)",
+      "purpose": "Anti-inflammatory painkiller (NSAID) – reduces pain and swelling.",
+      "instructions": "Take 1 capsule ONCE daily AFTER food when needed for pain and inflammation.",
+      "cycles": [{"cycle": "morning", "qty": "1 capsule", "regular": false}],
+      "critical": false,
+      "with_food": true,
+      "warnings": "Always take with food to protect the stomach. Once daily only.",
+      "tags": ["NSAID", "Anti-inflammatory", "Pain", "Swelling", "With food", "If pain", "Once daily", "Schedule S3"]
+    },
+    {
+      "id": "xonoco",
+      "name": "Xonoco XR 10/5 mg",
+      "active": "Oxycodone 10 mg / Naloxone 5 mg (prolonged-release)",
+      "schedule_code": "S6",
+      "category": "Opioid painkiller",
+      "purpose": "Strong painkiller for moderate-to-severe pain.",
+      "instructions": "Take 1 tablet every 12 hours AFTER food when needed for pain. Swallow whole – do not crush or chew.",
+      "cycles": [
+        {"cycle": "morning", "qty": "1 tablet", "regular": false},
+        {"cycle": "evening", "qty": "1 tablet", "regular": false}
+      ],
+      "critical": false,
+      "with_food": true,
+      "warnings": "Strong opioid. May cause drowsiness/constipation. Do not combine with extra codeine products without asking the doctor.",
+      "tags": ["Opioid", "Strong pain", "Drowsiness", "With food", "If pain", "Every 12 hours", "Swallow whole", "Schedule S6"]
+    },
+    {
+      "id": "dynapayne",
+      "name": "Dynapayne",
+      "active": "Paracetamol 320 mg + Meprobamate 150 mg + Codeine 8 mg + Caffeine 32 mg",
+      "schedule_code": "S5",
+      "category": "Combination painkiller",
+      "purpose": "Combination painkiller for breakthrough pain.",
+      "instructions": "Take 1 to 2 tablets AFTER food when needed for pain. Do NOT exceed 8 tablets in 24 hours.",
+      "cycles": [
+        {"cycle": "morning", "qty": "1–2 tablets", "regular": false},
+        {"cycle": "evening", "qty": "1–2 tablets", "regular": false}
+      ],
+      "critical": false,
+      "with_food": true,
+      "warnings": "Contains paracetamol AND codeine – do not take other paracetamol/codeine products at the same time. May cause drowsiness. Max 8 in 24h.",
+      "tags": ["Painkiller", "Codeine", "Paracetamol", "Drowsiness", "With food", "If pain", "Max 8 per day", "Schedule S5"]
+    }
+  ]
+}
