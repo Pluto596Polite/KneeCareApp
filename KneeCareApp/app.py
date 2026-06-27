@@ -152,7 +152,7 @@ def send_notification(text):
                 req = urllib.request.Request(url, data=data, headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bot {tok}",
-                    "User-Agent": "KneeCare/1.0"
+                    "User-Agent": "DiscordBot (https://kneecare.local, 1.0)"
                 })
                 urllib.request.urlopen(req, timeout=15)
                 return True, "Sent via Discord Bot."
@@ -191,6 +191,11 @@ def send_notification(text):
             urllib.request.urlopen(url, timeout=20)
             return True, "Sent via WhatsApp."
         return False, f"Unknown channel '{ch}'."
+    except urllib.error.HTTPError as e:
+        body = ""
+        try: body = e.read().decode(errors="replace")
+        except: pass
+        return False, f"HTTP {e.code} {e.reason}: {body}".strip()
     except Exception as e:
         return False, f"Send failed: {e}"
 
@@ -293,7 +298,7 @@ def discord_chatbot_loop():
             url = f"https://discord.com/api/v10/channels/{ch_id}/messages?limit=5"
             req = urllib.request.Request(url, headers={
                 "Authorization": f"Bot {tok}",
-                "User-Agent": "KneeCare/1.0"
+                "User-Agent": "DiscordBot (https://kneecare.local, 1.0)"
             })
             res = urllib.request.urlopen(req, timeout=10)
             msgs = json.loads(res.read())
@@ -341,7 +346,7 @@ def discord_chatbot_loop():
                     req_post = urllib.request.Request(post_url, data=data, headers={
                         "Authorization": f"Bot {tok}",
                         "Content-Type": "application/json",
-                        "User-Agent": "KneeCare/1.0"
+                        "User-Agent": "DiscordBot (https://kneecare.local, 1.0)"
                     })
                     urllib.request.urlopen(req_post, timeout=10)
         except Exception as e:
