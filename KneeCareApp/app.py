@@ -58,7 +58,10 @@ class SqliteDB:
                 key TEXT PRIMARY KEY, ts TEXT)""")
             conn.execute("""CREATE TABLE IF NOT EXISTS dose_events(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                day TEXT, med_id TEXT, ts TEXT)""")
+                day TEXT, med_id TEXT, ts TEXT, qty INTEGER DEFAULT 1)""")
+            try:
+                conn.execute("ALTER TABLE dose_events ADD COLUMN qty INTEGER DEFAULT 1")
+            except Exception: pass
 
     def set_dose(self, day, cycle, med_id, taken):
         with get_db() as conn:
@@ -91,10 +94,10 @@ class SqliteDB:
             conn.execute("INSERT OR REPLACE INTO sent_log(key,ts) VALUES(?,?)",
                          (key, datetime.now().isoformat(timespec="seconds")))
 
-    def add_dose_event(self, day, med_id):
+    def add_dose_event(self, day, med_id, qty=1):
         with get_db() as conn:
-            conn.execute("INSERT INTO dose_events(day, med_id, ts) VALUES(?,?,?)",
-                         (day, med_id, datetime.now().isoformat(timespec="seconds")))
+            conn.execute("INSERT INTO dose_events(day, med_id, ts, qty) VALUES(?,?,?,?)",
+                         (day, med_id, datetime.now().isoformat(timespec="seconds"), qty))
                          
     def remove_dose_event(self, event_id):
         with get_db() as conn:
@@ -103,7 +106,11 @@ class SqliteDB:
     def get_dose_events(self, day):
         with get_db() as conn:
             rows = conn.execute("SELECT * FROM dose_events WHERE day=? ORDER BY ts DESC", (day,)).fetchall()
-            return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"]} for r in rows]
+            return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"], "qty": r.get("qty") or 1} for r in rows]
+
+    def update_dose_event_qty(self, event_id, qty):
+        with get_db() as conn:
+            conn.execute("UPDATE dose_events SET qty=? WHERE id=?", (qty, event_id))
 
 class MongoDB:
     def __init__(self, uri):
@@ -142,11 +149,11 @@ class MongoDB:
     def mark_sent(self, key):
         self.db.sent_log.update_one({"key": key}, {"$set": {"ts": datetime.now().isoformat()}}, upsert=True)
 
-    def add_dose_event(self, day, med_id):
+    def add_dose_event(self, day, med_id, qty=1):
         import uuid
         self.db.dose_events.insert_one({
             "id": str(uuid.uuid4()), "day": day, "med_id": med_id, 
-            "ts": datetime.now().isoformat(timespec="seconds")
+            "ts": datetime.now().isoformat(timespec="seconds"), "qty": qty
         })
         
     def remove_dose_event(self, event_id):
@@ -154,7 +161,10 @@ class MongoDB:
         
     def get_dose_events(self, day):
         rows = self.db.dose_events.find({"day": day}).sort("ts", -1)
-        return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"]} for r in rows]
+        return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"], "qty": r.get("qty", 1)} for r in rows]
+
+    def update_dose_event_qty(self, event_id, qty):
+        self.db.dose_events.update_one({"id": event_id}, {"$set": {"qty": qty}})
 
 # Global DB instance
 _db_instance = None
@@ -368,10 +378,10 @@ def discord_chatbot_loop():
                     else:
                         state = get_db_impl().day_state(target_day)
                         events = get_db_impl().get_dose_events(target_day)
-                        all_e = [{"ts": e["ts"], "med_id": e["med_id"]} for e in events]
+                        all_e = [{"ts": e["ts"], "med_id": e["med_id"], "qty": e.get("qty", 1)} for e in events]
                         for k, v in state.get("doses", {}).items():
                             if v:
-                                all_e.append({"ts": v if isinstance(v, str) else target_day+"T00:00", "med_id": k.split(':')[1]})
+                                all_e.append({"ts": v if isinstance(v, str) else target_day+"T00:00", "med_id": k.split(':')[1], "qty": 1})
                         all_e.sort(key=lambda x: x["ts"])
                         if not all_e:
                             reply = f"No medications logged on {target_day}."
@@ -379,8 +389,71 @@ def discord_chatbot_loop():
                             meds = load_json("meds.json")["medicines"]
                             m_map = {m["id"]: m["name"] for m in meds}
                             reply = f"**Entries for {target_day}**:\n" + "\n".join(
-                                [f"- {e['ts'].split('T')[1][:5] if 'T' in e['ts'] else ''} : {m_map.get(e['med_id'], e['med_id'])}" for e in all_e]
+                                [f"- {e['ts'].split('T')[1][:5] if 'T' in e['ts'] else ''} : {e['qty']}x {m_map.get(e['med_id'], e['med_id'])}" for e in all_e]
                             )
+                elif content.startswith("add "):
+                    parts = content.split()
+                    if len(parts) >= 2:
+                        qty = 1
+                        if parts[-1].isdigit():
+                            qty = int(parts[-1])
+                            med_q = " ".join(parts[1:-1]).lower()
+                        else:
+                            med_q = " ".join(parts[1:]).lower()
+                        meds = load_json("meds.json")["medicines"]
+                        found_m = next((m for m in meds if med_q in m["name"].lower() or med_q == m["id"]), None)
+                        if found_m:
+                            target_day = datetime.now().strftime("%Y-%m-%d")
+                            get_db_impl().add_dose_event(target_day, found_m["id"], qty)
+                            reply = f"✅ Added {qty}x {found_m['name']} to today's log."
+                        else:
+                            reply = f"❌ Could not find medication '{med_q}'."
+                elif content.startswith("remove "):
+                    med_q = content.replace("remove ", "").strip().lower()
+                    meds = load_json("meds.json")["medicines"]
+                    found_m = next((m for m in meds if med_q in m["name"].lower() or med_q == m["id"]), None)
+                    if found_m:
+                        target_day = datetime.now().strftime("%Y-%m-%d")
+                        events = get_db_impl().get_dose_events(target_day)
+                        matching = [e for e in events if e["med_id"] == found_m["id"]]
+                        if matching:
+                            get_db_impl().remove_dose_event(matching[0]["id"])
+                            reply = f"🗑️ Removed the most recent log of {found_m['name']} for today."
+                        else:
+                            reply = f"❌ You haven't logged any PRN doses of {found_m['name']} today."
+                    else:
+                        reply = f"❌ Could not find medication '{med_q}'."
+                elif content.startswith("edit "):
+                    parts = content.split()
+                    if len(parts) >= 3 and parts[-1].isdigit():
+                        qty = int(parts[-1])
+                        med_q = " ".join(parts[1:-1]).lower()
+                        meds = load_json("meds.json")["medicines"]
+                        found_m = next((m for m in meds if med_q in m["name"].lower() or med_q == m["id"]), None)
+                        if found_m:
+                            target_day = datetime.now().strftime("%Y-%m-%d")
+                            events = get_db_impl().get_dose_events(target_day)
+                            matching = [e for e in events if e["med_id"] == found_m["id"]]
+                            if matching:
+                                get_db_impl().update_dose_event_qty(matching[0]["id"], qty)
+                                reply = f"✏️ Updated the most recent log of {found_m['name']} to {qty}x."
+                            else:
+                                reply = f"❌ You haven't logged any PRN doses of {found_m['name']} today."
+                        else:
+                            reply = f"❌ Could not find medication '{med_q}'."
+                    else:
+                        reply = "❌ Please provide a quantity. Example: `edit dynapayne 2`"
+                elif content.startswith("search "):
+                    query = content.replace("search ", "").strip().lower()
+                    meds = load_json("meds.json")["medicines"]
+                    results = []
+                    for m in meds:
+                        if query in m["name"].lower() or query in m["category"].lower() or any(query in t.lower() for t in m["tags"]):
+                            results.append(m["name"])
+                    if results:
+                        reply = f"🔍 Medications matching '{query}':\n" + "\n".join([f"- {r}" for r in results])
+                    else:
+                        reply = f"❌ No medications found matching '{query}'."
                 elif "strongest" in content or "rank" in content:
                     meds = load_json("meds.json")["medicines"]
                     def strength(m):
@@ -399,7 +472,7 @@ def discord_chatbot_loop():
                     if not found:
                         reply = "I didn't recognize that medication. Try asking about Axolta, Belanex, Colcibra, Xonoco, or Dynapayne."
                 elif "help" in content or "hello" in content or "hi" in content:
-                    reply = "Hello! You can ask me:\n- 'what is the following medication cycle'\n- 'what are the entries for today'\n- 'show history for yesterday'\n- 'which is strongest'\n- 'what is [medication name] used for'."
+                    reply = "Hello! You can ask me:\n- 'what is the following medication cycle'\n- 'what are the entries for today'\n- 'add dynapayne 2'\n- 'remove dynapayne'\n- 'edit dynapayne 1'\n- 'search optional'\n- 'which is strongest'\n- 'what is [medication name] used for'."
                 
                 if reply:
                     post_url = f"https://discord.com/api/v10/channels/{ch_id}/messages"
@@ -492,10 +565,13 @@ class Handler(BaseHTTPRequestHandler):
             get_db_impl().set_dose(payload["day"], payload["cycle"], payload["med_id"], payload["taken"])
             return self._send(200, {"ok": True})
         if p.path == "/api/log_dose":
-            get_db_impl().add_dose_event(payload["day"], payload["med_id"])
+            get_db_impl().add_dose_event(payload["day"], payload["med_id"], payload.get("qty", 1))
             return self._send(200, {"ok": True})
         if p.path == "/api/remove_dose_event":
             get_db_impl().remove_dose_event(payload["event_id"])
+            return self._send(200, {"ok": True})
+        if p.path == "/api/update_dose_qty":
+            get_db_impl().update_dose_event_qty(payload["event_id"], payload["qty"])
             return self._send(200, {"ok": True})
         if p.path == "/api/exercise":
             get_db_impl().set_exercise(payload["day"], payload["ex_id"], payload["done"])

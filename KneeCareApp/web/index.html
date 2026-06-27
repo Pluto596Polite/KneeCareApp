@@ -336,6 +336,7 @@ function renderHistory(){
     <select id="histAddMed" class="input" style="flex:1; padding:8px; font-size:14px; border-radius:6px; border:1px solid var(--border)">
       ${DATA.meds.medicines.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}
     </select>
+    <input type="number" id="histAddQty" value="1" min="1" max="10" class="input" style="width:50px; padding:8px; font-size:14px; border-radius:6px; border:1px solid var(--border); text-align:center">
     <button id="histAddBtn" class="btn" style="padding:8px 16px; font-size:14px">+ Add</button>
   </div><div class="card-b">`;
   
@@ -367,12 +368,14 @@ function renderHistory(){
       }
       
       let strengthStr = '';
+      let qtyStr = '';
       if (m && m.schedule_code && e.type === 'prn') {
          const code = parseInt(m.schedule_code.replace('S', '')) || 0;
          let strength = 1, col = 'var(--good)';
          if (code >= 6) { strength = 3; col = 'var(--danger)'; }
          else if (code >= 5) { strength = 2; col = 'var(--brand)'; }
          strengthStr = `<div style="margin-top:4px"><span style="font-size:10.5px;background:${col};color:white;padding:2px 6px;border-radius:4px;font-weight:600">Strength: ${strength}/3</span></div>`;
+         qtyStr = `<input type="number" data-editqty="${e.id}" value="${e.qty||1}" min="1" max="10" title="Edit quantity" style="width:40px; padding:2px; font-size:12px; margin-right:6px; border-radius:4px; border:1px solid var(--border); text-align:center; color:var(--brand)">`;
       }
       
       const actionHtml = e.type === 'prn' 
@@ -381,7 +384,10 @@ function renderHistory(){
 
       h += `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:10px;color:var(--ink2);vertical-align:top">${time}</td>
-        <td style="padding:10px;font-weight:600;color:var(--ink);vertical-align:top">${m ? esc(m.name) : esc(e.med_id)}${strengthStr}${tagHtml}</td>
+        <td style="padding:10px;font-weight:600;color:var(--ink);vertical-align:top">
+          <div style="display:flex;align-items:center">${qtyStr}${m ? esc(m.name) : esc(e.med_id)}</div>
+          ${strengthStr}${tagHtml}
+        </td>
         <td style="padding:10px;text-align:right;vertical-align:top">${actionHtml}</td>
       </tr>`;
     });
@@ -552,18 +558,26 @@ function wire(){
   });
   if(g('histAddBtn')) g('histAddBtn').onclick = async () => {
     const med_id = g('histAddMed').value;
+    const qty = parseInt(g('histAddQty').value) || 1;
     const m = DATA.meds.medicines.find(x => x.id === med_id);
     if (m.cycles && m.cycles[0] && m.cycles[0].regular) {
       const c = m.cycles[0].cycle;
       DATA.state.doses[`${c}:${med_id}`] = new Date().toISOString(); render();
       await api('/api/dose',{day:DAY, cycle:c, med_id:med_id, taken:true});
     } else {
-      const optimistic = {id: 'temp_'+Date.now(), med_id: med_id, ts: new Date().toISOString()};
+      const optimistic = {id: 'temp_'+Date.now(), med_id: med_id, ts: new Date().toISOString(), qty: qty};
       if(!DATA.events) DATA.events=[]; DATA.events.unshift(optimistic); render();
-      await api('/api/log_dose',{day:DAY, med_id:med_id});
+      await api('/api/log_dose',{day:DAY, med_id:med_id, qty:qty});
     }
     load();
   };
+  document.querySelectorAll('[data-editqty]').forEach(el=>el.onchange=async(ev)=>{
+    const qty = parseInt(el.value);
+    const event_id = el.dataset.editqty;
+    const evt = DATA.events.find(x => x.id === event_id);
+    if (evt) evt.qty = qty;
+    await api('/api/update_dose_qty', {event_id: event_id, qty: qty});
+  });
   document.querySelectorAll('[data-ex]').forEach(el=>el.onclick=async(ev)=>{
     ev.stopPropagation();const id=el.dataset.ex,cur=!!DATA.state.exercises[id];
     DATA.state.exercises[id]=!cur;render();
