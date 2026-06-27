@@ -319,9 +319,19 @@ function renderHistory(){
     events.forEach(e => {
       const time = new Date(e.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       const m = DATA.meds.medicines.find(x=>x.id===e.med_id);
+      
+      let strengthStr = '';
+      if (m && m.schedule_code) {
+         const code = parseInt(m.schedule_code.replace('S', '')) || 0;
+         let strength = 1;
+         if (code >= 6) strength = 3;
+         else if (code >= 5) strength = 2;
+         strengthStr = `<div style="font-size:11.5px;color:var(--brand-700);margin-top:2px">Strength: ${strength}/3</div>`;
+      }
+      
       h += `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:10px;color:var(--ink2)">${time}</td>
-        <td style="padding:10px;font-weight:600;color:var(--ink)">${m ? esc(m.name) : esc(e.med_id)}</td>
+        <td style="padding:10px;font-weight:600;color:var(--ink)">${m ? esc(m.name) : esc(e.med_id)}${strengthStr}</td>
         <td style="padding:10px;text-align:right"><button class="btn ghost" data-undodose="${e.id}" style="padding:4px 8px;font-size:11px;color:var(--danger)">Remove</button></td>
       </tr>`;
     });
