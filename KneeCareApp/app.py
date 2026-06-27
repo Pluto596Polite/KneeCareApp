@@ -45,47 +45,98 @@ def get_db():
     finally:
         conn.close()
 
-def init_db():
-    with get_db() as conn:
-        conn.execute("""CREATE TABLE IF NOT EXISTS dose_log(
-            day TEXT, cycle TEXT, med_id TEXT, taken INTEGER, ts TEXT,
-            PRIMARY KEY(day, cycle, med_id))""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS exercise_log(
-            day TEXT, ex_id TEXT, done INTEGER, ts TEXT,
-            PRIMARY KEY(day, ex_id))""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS sent_log(
-            key TEXT PRIMARY KEY, ts TEXT)""")
+class SqliteDB:
+    def init_db(self):
+        with get_db() as conn:
+            conn.execute("""CREATE TABLE IF NOT EXISTS dose_log(
+                day TEXT, cycle TEXT, med_id TEXT, taken INTEGER, ts TEXT,
+                PRIMARY KEY(day, cycle, med_id))""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS exercise_log(
+                day TEXT, ex_id TEXT, done INTEGER, ts TEXT,
+                PRIMARY KEY(day, ex_id))""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS sent_log(
+                key TEXT PRIMARY KEY, ts TEXT)""")
 
-def set_dose(day, cycle, med_id, taken):
-    with get_db() as conn:
-        conn.execute("""INSERT INTO dose_log(day,cycle,med_id,taken,ts)
-            VALUES(?,?,?,?,?)
-            ON CONFLICT(day,cycle,med_id) DO UPDATE SET taken=excluded.taken, ts=excluded.ts""",
-            (day, cycle, med_id, 1 if taken else 0, datetime.now().isoformat(timespec="seconds")))
+    def set_dose(self, day, cycle, med_id, taken):
+        with get_db() as conn:
+            conn.execute("""INSERT INTO dose_log(day,cycle,med_id,taken,ts)
+                VALUES(?,?,?,?,?)
+                ON CONFLICT(day,cycle,med_id) DO UPDATE SET taken=excluded.taken, ts=excluded.ts""",
+                (day, cycle, med_id, 1 if taken else 0, datetime.now().isoformat(timespec="seconds")))
 
-def set_exercise(day, ex_id, done):
-    with get_db() as conn:
-        conn.execute("""INSERT INTO exercise_log(day,ex_id,done,ts)
-            VALUES(?,?,?,?)
-            ON CONFLICT(day,ex_id) DO UPDATE SET done=excluded.done, ts=excluded.ts""",
-            (day, ex_id, 1 if done else 0, datetime.now().isoformat(timespec="seconds")))
+    def set_exercise(self, day, ex_id, done):
+        with get_db() as conn:
+            conn.execute("""INSERT INTO exercise_log(day,ex_id,done,ts)
+                VALUES(?,?,?,?)
+                ON CONFLICT(day,ex_id) DO UPDATE SET done=excluded.done, ts=excluded.ts""",
+                (day, ex_id, 1 if done else 0, datetime.now().isoformat(timespec="seconds")))
 
-def day_state(day):
-    with get_db() as conn:
-        doses = {f"{r['cycle']}:{r['med_id']}": bool(r["taken"])
-                 for r in conn.execute("SELECT * FROM dose_log WHERE day=?", (day,))}
-        ex = {r["ex_id"]: bool(r["done"])
-              for r in conn.execute("SELECT * FROM exercise_log WHERE day=?", (day,))}
-    return {"doses": doses, "exercises": ex}
+    def day_state(self, day):
+        with get_db() as conn:
+            doses = {f"{r['cycle']}:{r['med_id']}": bool(r["taken"])
+                     for r in conn.execute("SELECT * FROM dose_log WHERE day=?", (day,))}
+            ex = {r["ex_id"]: bool(r["done"])
+                  for r in conn.execute("SELECT * FROM exercise_log WHERE day=?", (day,))}
+        return {"doses": doses, "exercises": ex}
 
-def already_sent(key):
-    with get_db() as conn:
-        return conn.execute("SELECT 1 FROM sent_log WHERE key=?", (key,)).fetchone() is not None
+    def already_sent(self, key):
+        with get_db() as conn:
+            return conn.execute("SELECT 1 FROM sent_log WHERE key=?", (key,)).fetchone() is not None
 
-def mark_sent(key):
-    with get_db() as conn:
-        conn.execute("INSERT OR REPLACE INTO sent_log(key,ts) VALUES(?,?)",
-                     (key, datetime.now().isoformat(timespec="seconds")))
+    def mark_sent(self, key):
+        with get_db() as conn:
+            conn.execute("INSERT OR REPLACE INTO sent_log(key,ts) VALUES(?,?)",
+                         (key, datetime.now().isoformat(timespec="seconds")))
+
+class MongoDB:
+    def __init__(self, uri):
+        from pymongo import MongoClient
+        self.client = MongoClient(uri)
+        self.db = self.client.get_database() # Uses default DB from URI, or you can specify name
+    
+    def init_db(self):
+        # MongoDB creates collections automatically
+        pass
+        
+    def set_dose(self, day, cycle, med_id, taken):
+        self.db.doses.update_one(
+            {"day": day, "cycle": cycle, "med_id": med_id},
+            {"$set": {"taken": 1 if taken else 0, "ts": datetime.now().isoformat()}},
+            upsert=True
+        )
+        
+    def set_exercise(self, day, ex_id, done):
+        self.db.exercises.update_one(
+            {"day": day, "ex_id": ex_id},
+            {"$set": {"done": 1 if done else 0, "ts": datetime.now().isoformat()}},
+            upsert=True
+        )
+        
+    def day_state(self, day):
+        doses = {f"{r['cycle']}:{r['med_id']}": bool(r.get("taken")) 
+                 for r in self.db.doses.find({"day": day})}
+        ex = {r["ex_id"]: bool(r.get("done"))
+              for r in self.db.exercises.find({"day": day})}
+        return {"doses": doses, "exercises": ex}
+        
+    def already_sent(self, key):
+        return self.db.sent_log.find_one({"key": key}) is not None
+        
+    def mark_sent(self, key):
+        self.db.sent_log.update_one({"key": key}, {"$set": {"ts": datetime.now().isoformat()}}, upsert=True)
+
+# Global DB instance
+_db_instance = None
+def get_db_impl():
+    global _db_instance
+    if _db_instance is None:
+        cfg = get_config()
+        uri = os.environ.get("MONGO_URI") or cfg.get("mongo_uri")
+        if uri:
+            _db_instance = MongoDB(uri)
+        else:
+            _db_instance = SqliteDB()
+    return _db_instance
 
 def send_notification(text):
     cfg = get_config()["notify"]
@@ -209,7 +260,7 @@ def scheduler_loop():
             keys_to_mark = []
             
             for t, key, builder in jobs:
-                if hm == t and key not in sent_memory and not already_sent(key):
+                if hm == t and key not in sent_memory and not get_db_impl().already_sent(key):
                     sent_memory.add(key)
                     messages_to_send.append(builder())
                     keys_to_mark.append(key)
@@ -219,7 +270,7 @@ def scheduler_loop():
                 ok, msg = send_notification(combined_msg)
                 if ok:
                     for k in keys_to_mark:
-                        mark_sent(k)
+                        get_db_impl().mark_sent(k)
                 else:
                     for k in keys_to_mark:
                         sent_memory.discard(k)
@@ -355,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
                     "wiki": load_json("wiki.json"),
                     "config": get_config(),
                     "day": day,
-                    "state": day_state(day),
+                    "state": get_db_impl().day_state(day),
                 })
             except Exception as e:
                 return self._send(500, {"error": str(e)})
@@ -371,10 +422,10 @@ class Handler(BaseHTTPRequestHandler):
         except Exception: payload = {}
         
         if p.path == "/api/dose":
-            set_dose(payload["day"], payload["cycle"], payload["med_id"], payload["taken"])
+            get_db_impl().set_dose(payload["day"], payload["cycle"], payload["med_id"], payload["taken"])
             return self._send(200, {"ok": True})
         if p.path == "/api/exercise":
-            set_exercise(payload["day"], payload["ex_id"], payload["done"])
+            get_db_impl().set_exercise(payload["day"], payload["ex_id"], payload["done"])
             return self._send(200, {"ok": True})
         if p.path == "/api/config":
             cfg = get_config()
@@ -402,8 +453,8 @@ def get_lan_ip():
     finally: s.close()
 
 def main():
-    init_db()
-    port = get_config().get("port", 8770)
+    get_db_impl().init_db()
+    port = int(os.environ.get("PORT", get_config().get("port", 8770)))
     threading.Thread(target=scheduler_loop, daemon=True).start()
     threading.Thread(target=discord_chatbot_loop, daemon=True).start()
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)
