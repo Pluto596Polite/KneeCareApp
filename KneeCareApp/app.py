@@ -14,6 +14,7 @@ import time
 import urllib.request
 import urllib.parse
 import urllib.error
+from contextlib import contextmanager
 from datetime import datetime, date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -31,21 +32,30 @@ def load_json(name):
         return json.load(f)
 
 def save_json(name, obj):
-    with open(os.path.join(BASE, name), "w", encoding="utf-8") as f:
+    path = os.path.join(BASE, name)
+    temp_path = path + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, ensure_ascii=False)
+    os.replace(temp_path, path)
 
 def get_config():
     return load_json("config.json")
 
 # ----------------------------- database -------------------------------------
 
-def db():
-    conn = sqlite3.connect(DB_PATH)
+@contextmanager
+def get_db():
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 def init_db():
-    with db() as conn:
+    with get_db() as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS dose_log(
             day TEXT, cycle TEXT, med_id TEXT, taken INTEGER, ts TEXT,
             PRIMARY KEY(day, cycle, med_id))""")
@@ -56,21 +66,21 @@ def init_db():
             key TEXT PRIMARY KEY, ts TEXT)""")
 
 def set_dose(day, cycle, med_id, taken):
-    with db() as conn:
+    with get_db() as conn:
         conn.execute("""INSERT INTO dose_log(day,cycle,med_id,taken,ts)
             VALUES(?,?,?,?,?)
             ON CONFLICT(day,cycle,med_id) DO UPDATE SET taken=excluded.taken, ts=excluded.ts""",
             (day, cycle, med_id, 1 if taken else 0, datetime.now().isoformat(timespec="seconds")))
 
 def set_exercise(day, ex_id, done):
-    with db() as conn:
+    with get_db() as conn:
         conn.execute("""INSERT INTO exercise_log(day,ex_id,done,ts)
             VALUES(?,?,?,?)
             ON CONFLICT(day,ex_id) DO UPDATE SET done=excluded.done, ts=excluded.ts""",
             (day, ex_id, 1 if done else 0, datetime.now().isoformat(timespec="seconds")))
 
 def day_state(day):
-    with db() as conn:
+    with get_db() as conn:
         doses = {f"{r['cycle']}:{r['med_id']}": bool(r["taken"])
                  for r in conn.execute("SELECT * FROM dose_log WHERE day=?", (day,))}
         ex = {r["ex_id"]: bool(r["done"])
@@ -78,11 +88,11 @@ def day_state(day):
     return {"doses": doses, "exercises": ex}
 
 def already_sent(key):
-    with db() as conn:
+    with get_db() as conn:
         return conn.execute("SELECT 1 FROM sent_log WHERE key=?", (key,)).fetchone() is not None
 
 def mark_sent(key):
-    with db() as conn:
+    with get_db() as conn:
         conn.execute("INSERT OR REPLACE INTO sent_log(key,ts) VALUES(?,?)",
                      (key, datetime.now().isoformat(timespec="seconds")))
 
@@ -185,6 +195,7 @@ def build_exercise_message():
 # ----------------------------- scheduler ------------------------------------
 
 def scheduler_loop():
+    sent_memory = set()
     while True:
         try:
             cfg = get_config()
@@ -200,10 +211,14 @@ def scheduler_loop():
             for t in cfg.get("exercise_reminder_times", []):
                 jobs.append((t, f"ex:{t}:{today}", build_exercise_message))
             for t, key, builder in jobs:
-                if hm == t and not already_sent(key):
+                if hm == t and key not in sent_memory and not already_sent(key):
+                    sent_memory.add(key)
                     ok, msg = send_notification(builder())
                     if ok:
                         mark_sent(key)
+                    else:
+                        # If send failed (e.g. 429), remove from memory so it can retry
+                        sent_memory.discard(key)
                     print(f"[scheduler] {key}: {msg}")
         except Exception as e:
             print("[scheduler] error:", e)
@@ -232,30 +247,37 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(BASE, "web", "index.html"), "rb") as f:
                 return self._send(200, f.read(), "text/html; charset=utf-8")
         # static files from web/ (js, css, images) – safe, no path traversal
-        if p.path != "/" and "/" not in p.path.strip("/") and "." in p.path:
-            name = p.path.lstrip("/")
+        if p.path != "/" and "." in p.path:
+            name = urllib.parse.unquote(p.path.lstrip("/"))
             types = {".js": "application/javascript", ".css": "text/css",
                      ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json"}
             ext = os.path.splitext(name)[1]
-            fpath = os.path.join(BASE, "web", name)
-            if ext in types and os.path.isfile(fpath):
+            fpath = os.path.abspath(os.path.join(BASE, "web", name))
+            web_dir = os.path.abspath(os.path.join(BASE, "web"))
+            if fpath.startswith(web_dir) and ext in types and os.path.isfile(fpath):
                 with open(fpath, "rb") as f:
                     return self._send(200, f.read(), types[ext] + "; charset=utf-8")
         if p.path == "/api/data":
-            day = urllib.parse.parse_qs(p.query).get("day", [date.today().isoformat()])[0]
-            return self._send(200, {
-                "meds": load_json("meds.json"),
-                "exercises": load_json("exercises.json"),
-                "wiki": load_json("wiki.json"),
-                "config": get_config(),
-                "day": day,
-                "state": day_state(day),
-            })
+            try:
+                day = urllib.parse.parse_qs(p.query).get("day", [date.today().isoformat()])[0]
+                return self._send(200, {
+                    "meds": load_json("meds.json"),
+                    "exercises": load_json("exercises.json"),
+                    "wiki": load_json("wiki.json"),
+                    "config": get_config(),
+                    "day": day,
+                    "state": day_state(day),
+                })
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
         return self._send(404, {"error": "not found"})
 
     def do_POST(self):
         p = urllib.parse.urlparse(self.path)
-        length = int(self.headers.get("Content-Length", 0))
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            length = 0
         raw = self.rfile.read(length) if length else b"{}"
         try:
             payload = json.loads(raw or b"{}")

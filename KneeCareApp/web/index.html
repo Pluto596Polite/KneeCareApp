@@ -203,7 +203,16 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2800);}
 async function api(path,body){const o={method:body?'POST':'GET'};
   if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body);}
-  return (await fetch(path,o)).json();}
+  try {
+    const res = await fetch(path,o);
+    const j = await res.json();
+    if (j.error) throw new Error(j.error);
+    return j;
+  } catch(e) {
+    toast("Error: " + e.message);
+    throw e;
+  }
+}
 async function load(){DATA=await api('/api/data?day='+DAY);
   document.getElementById('pName').textContent=DATA.meds.patient;
   document.getElementById('pAv').textContent=(DATA.meds.patient||'M').trim()[0];
@@ -402,8 +411,8 @@ function wire(){
   if(g('nextDay'))g('nextDay').onclick=()=>{if(DAY<todayISO()){DAY=shift(DAY,1);load();}};
   if(g('saveTimes'))g('saveTimes').onclick=async()=>{await api('/api/config',{morning_time:g('mt').value,evening_time:g('et').value});toast('Reminder times saved');load();};
   if(g('saveNotif'))g('saveNotif').onclick=async()=>{await api('/api/config',{notify:{channel:g('ch').value,discord_webhook_url:g('wh').value}});toast('Notification settings saved');load();};
-  if(g('test'))g('test').onclick=async()=>{toast('Sending test…');const r=await api('/api/test',{});toast(r.message);};
-  if(g('sendM'))g('sendM').onclick=async()=>{toast('Sending…');const r=await api('/api/notify_cycle',{cycle:'morning'});toast(r.message);};
+  if(g('test'))g('test').onclick=async()=>{if(g('test').disabled)return;g('test').disabled=true;toast('Sending test…');const r=await api('/api/test',{});toast(r.message);g('test').disabled=false;};
+  if(g('sendM'))g('sendM').onclick=async()=>{if(g('sendM').disabled)return;g('sendM').disabled=true;toast('Sending…');const r=await api('/api/notify_cycle',{cycle:'morning'});toast(r.message);g('sendM').disabled=false;};
 }
 function shift(iso,d){const x=new Date(iso+'T00:00:00');x.setDate(x.getDate()+d);return x.toISOString().slice(0,10);}
 load();
