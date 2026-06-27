@@ -166,6 +166,7 @@
     </div>
     <nav id="nav">
       <button data-page="today" class="active"><span class="ic">📋</span> Today</button>
+      <button data-page="history"><span class="ic">📊</span> History</button>
       <button data-page="exercises"><span class="ic">🤸</span> Exercises</button>
       <button data-page="meds"><span class="ic">💊</span> Medicines</button>
       <button data-page="wiki"><span class="ic">📚</span> Wiki</button>
@@ -223,7 +224,7 @@ document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x===b));
   render();});
 
-const TITLES={today:['Today',''],exercises:['Exercise Programme','Animated guide · tap a card when a set is done'],
+const TITLES={today:['Today',''],history:['Dosage History','Table view of all logged pain medication'],exercises:['Exercise Programme','Animated guide · tap a card when a set is done'],
   meds:['Medicine Reference',''],wiki:['Knowledge Base','Search by name, ingredient, purpose or tag'],
   settings:['Settings','Reminder times & notifications']};
 
@@ -232,7 +233,7 @@ function render(){
   document.getElementById('pageTitle').textContent=t;
   document.getElementById('pageSub').textContent = PAGE==='today'?fmtDay(DAY):(s||'');
   const v=document.getElementById('view');
-  v.innerHTML = PAGE==='today'?renderToday():PAGE==='exercises'?renderExercises():
+  v.innerHTML = PAGE==='today'?renderToday():PAGE==='history'?renderHistory():PAGE==='exercises'?renderExercises():
                 PAGE==='meds'?renderMeds():PAGE==='wiki'?renderWiki():renderSettings();
   injectAnims(); wire();
 }
@@ -244,13 +245,25 @@ function injectAnims(){
 /* ---------- TODAY ---------- */
 function cycleItems(cycle){const o=[];DATA.meds.medicines.forEach(m=>m.cycles.forEach(c=>{if(c.cycle===cycle)o.push({m,c});}));return o;}
 function medItem(m,c,cycle){
-  const key=cycle+':'+m.id, d=!!DATA.state.doses[key];
+  const key=cycle+':'+m.id;
   const badge=m.critical?'<span class="badge crit">DO NOT SKIP</span>':
               (c.regular?'<span class="badge reg">EVERY DAY</span>':'<span class="badge prn">IF PAIN</span>');
-  return `<div class="item ${d?'done':''}" data-dose="${key}">
-    <div class="chk">${d?'✓':''}</div>
-    <div style="flex:1"><div class="name">${esc(m.name)}${badge}</div>
-    <div class="meta"><span class="qty">${esc(c.qty)}</span> · ${esc(m.instructions)}</div></div></div>`;
+  
+  if (!c.regular) {
+    const doses = (DATA.events||[]).filter(e=>e.med_id===m.id).length;
+    return `<div class="item" style="cursor:default">
+      <div style="flex:1"><div class="name">${esc(m.name)}${badge}</div>
+      <div class="meta"><span class="qty">${esc(c.qty)}</span> · ${esc(m.instructions)}</div>
+      <div style="margin-top:8px;font-size:12px;color:var(--brand-700)"><b>Logged today: ${doses}</b></div></div>
+      <button class="btn" data-logdose="${m.id}" style="padding:6px 12px;font-size:12px">+ Log Dose</button>
+      </div>`;
+  } else {
+    const d=!!DATA.state.doses[key];
+    return `<div class="item ${d?'done':''}" data-dose="${key}">
+      <div class="chk">${d?'✓':''}</div>
+      <div style="flex:1"><div class="name">${esc(m.name)}${badge}</div>
+      <div class="meta"><span class="qty">${esc(c.qty)}</span> · ${esc(m.instructions)}</div></div></div>`;
+  }
 }
 function cycleCard(cycle,icon,title,sub){
   const items=cycleItems(cycle),reg=items.filter(x=>x.c.regular),prn=items.filter(x=>!x.c.regular);
@@ -286,6 +299,35 @@ function renderToday(){
       <div style="flex:1"><div class="name">${esc(e.name)}</div>
       <div class="meta"><span class="qty">${esc(e.reps)}</span> · ${esc(e.detail)}</div></div></div>`;});
   h+=`</div></div>`;
+  return h;
+}
+
+/* ---------- HISTORY ---------- */
+function renderHistory(){
+  let h=`<div class="datebar"><button id="prevDayH">‹</button><strong id="dlH">${DAY===todayISO()?'Today':fmtDay(DAY)}</strong>
+    <button id="nextDayH">›</button></div>`;
+  
+  const events = DATA.events || [];
+  h += `<div class="card"><div class="card-h"><h3>📊 Pain Medication Log</h3><span class="meta">${events.length} entr${events.length===1?'y':'ies'}</span></div><div class="card-b">`;
+  
+  if (!events.length) {
+    h += `<div class="empty">No pain medication logged for this day.</div>`;
+  } else {
+    h += `<table style="width:100%;text-align:left;border-collapse:collapse;font-size:13.5px">
+      <thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:10px">Time</th><th style="padding:10px">Medication</th><th style="padding:10px;text-align:right">Action</th></tr></thead>
+      <tbody>`;
+    events.forEach(e => {
+      const time = new Date(e.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      const m = DATA.meds.medicines.find(x=>x.id===e.med_id);
+      h += `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px;color:var(--ink2)">${time}</td>
+        <td style="padding:10px;font-weight:600;color:var(--ink)">${m ? esc(m.name) : esc(e.med_id)}</td>
+        <td style="padding:10px;text-align:right"><button class="btn ghost" data-undodose="${e.id}" style="padding:4px 8px;font-size:11px;color:var(--danger)">Remove</button></td>
+      </tr>`;
+    });
+    h += `</tbody></table>`;
+  }
+  h += `</div></div>`;
   return h;
 }
 
@@ -428,6 +470,19 @@ function wire(){
     const key=el.dataset.dose,[c,id]=key.split(':'),cur=!!DATA.state.doses[key];
     DATA.state.doses[key]=!cur;render();
     await api('/api/dose',{day:DAY,cycle:c,med_id:id,taken:!cur});});
+  document.querySelectorAll('[data-logdose]').forEach(el=>el.onclick=async(ev)=>{
+    ev.stopPropagation(); const id=el.dataset.logdose;
+    const optimistic = {id: 'temp_'+Date.now(), med_id: id, ts: new Date().toISOString()};
+    if(!DATA.events) DATA.events=[]; DATA.events.unshift(optimistic); render();
+    await api('/api/log_dose',{day:DAY,med_id:id});
+    load(); // reload to get real IDs
+  });
+  document.querySelectorAll('[data-undodose]').forEach(el=>el.onclick=async(ev)=>{
+    ev.stopPropagation(); const event_id = el.dataset.undodose;
+    DATA.events = DATA.events.filter(e=>e.id!==event_id); render();
+    await api('/api/remove_dose_event',{event_id:event_id});
+    load();
+  });
   document.querySelectorAll('[data-ex]').forEach(el=>el.onclick=async(ev)=>{
     ev.stopPropagation();const id=el.dataset.ex,cur=!!DATA.state.exercises[id];
     DATA.state.exercises[id]=!cur;render();
@@ -439,6 +494,8 @@ function wire(){
     const ns=document.getElementById('wikiSearch');if(ns){ns.focus();ns.setSelectionRange(p,p);}};}
   if(g('prevDay'))g('prevDay').onclick=()=>{DAY=shift(DAY,-1);load();};
   if(g('nextDay'))g('nextDay').onclick=()=>{if(DAY<todayISO()){DAY=shift(DAY,1);load();}};
+  if(g('prevDayH'))g('prevDayH').onclick=()=>{DAY=shift(DAY,-1);load();};
+  if(g('nextDayH'))g('nextDayH').onclick=()=>{if(DAY<todayISO()){DAY=shift(DAY,1);load();}};
   if(g('saveTimes'))g('saveTimes').onclick=async()=>{await api('/api/config',{morning_time:g('mt').value,evening_time:g('et').value,password:g('pwd').value});toast('Settings saved. Refresh to login.');load();};
   if(g('saveNotif'))g('saveNotif').onclick=async()=>{await api('/api/config',{notify:{channel:g('ch').value,discord_webhook_url:g('wh').value,discord_bot_token:g('dbot').value,discord_channel_id:g('dchan').value}});toast('Notification & Chatbot settings saved');load();};
   if(g('test'))g('test').onclick=async()=>{if(g('test').disabled)return;g('test').disabled=true;toast('Sending test…');const r=await api('/api/test',{});toast(r.message);g('test').disabled=false;};

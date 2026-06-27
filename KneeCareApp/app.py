@@ -56,6 +56,9 @@ class SqliteDB:
                 PRIMARY KEY(day, ex_id))""")
             conn.execute("""CREATE TABLE IF NOT EXISTS sent_log(
                 key TEXT PRIMARY KEY, ts TEXT)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS dose_events(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                day TEXT, med_id TEXT, ts TEXT)""")
 
     def set_dose(self, day, cycle, med_id, taken):
         with get_db() as conn:
@@ -87,6 +90,20 @@ class SqliteDB:
         with get_db() as conn:
             conn.execute("INSERT OR REPLACE INTO sent_log(key,ts) VALUES(?,?)",
                          (key, datetime.now().isoformat(timespec="seconds")))
+
+    def add_dose_event(self, day, med_id):
+        with get_db() as conn:
+            conn.execute("INSERT INTO dose_events(day, med_id, ts) VALUES(?,?,?)",
+                         (day, med_id, datetime.now().isoformat(timespec="seconds")))
+                         
+    def remove_dose_event(self, event_id):
+        with get_db() as conn:
+            conn.execute("DELETE FROM dose_events WHERE id=?", (event_id,))
+            
+    def get_dose_events(self, day):
+        with get_db() as conn:
+            rows = conn.execute("SELECT * FROM dose_events WHERE day=? ORDER BY ts DESC", (day,)).fetchall()
+            return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"]} for r in rows]
 
 class MongoDB:
     def __init__(self, uri):
@@ -124,6 +141,20 @@ class MongoDB:
         
     def mark_sent(self, key):
         self.db.sent_log.update_one({"key": key}, {"$set": {"ts": datetime.now().isoformat()}}, upsert=True)
+
+    def add_dose_event(self, day, med_id):
+        import uuid
+        self.db.dose_events.insert_one({
+            "id": str(uuid.uuid4()), "day": day, "med_id": med_id, 
+            "ts": datetime.now().isoformat(timespec="seconds")
+        })
+        
+    def remove_dose_event(self, event_id):
+        self.db.dose_events.delete_one({"id": event_id})
+        
+    def get_dose_events(self, day):
+        rows = self.db.dose_events.find({"day": day}).sort("ts", -1)
+        return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"]} for r in rows]
 
 # Global DB instance
 _db_instance = None
@@ -318,7 +349,7 @@ def discord_chatbot_loop():
                 
                 if "what" in content and "cycle" in content:
                     hour = datetime.now().hour
-                    cycle = "evening" if hour >= 14 else "morning"
+                    cycle = "evening" if hour >= 12 else "morning"
                     reply = build_cycle_message(cycle)
                 elif "strongest" in content or "rank" in content:
                     meds = load_json("meds.json")["medicines"]
@@ -412,6 +443,7 @@ class Handler(BaseHTTPRequestHandler):
                     "config": get_config(),
                     "day": day,
                     "state": get_db_impl().day_state(day),
+                    "events": get_db_impl().get_dose_events(day),
                 })
             except Exception as e:
                 return self._send(500, {"error": str(e)})
@@ -428,6 +460,12 @@ class Handler(BaseHTTPRequestHandler):
         
         if p.path == "/api/dose":
             get_db_impl().set_dose(payload["day"], payload["cycle"], payload["med_id"], payload["taken"])
+            return self._send(200, {"ok": True})
+        if p.path == "/api/log_dose":
+            get_db_impl().add_dose_event(payload["day"], payload["med_id"])
+            return self._send(200, {"ok": True})
+        if p.path == "/api/remove_dose_event":
+            get_db_impl().remove_dose_event(payload["event_id"])
             return self._send(200, {"ok": True})
         if p.path == "/api/exercise":
             get_db_impl().set_exercise(payload["day"], payload["ex_id"], payload["done"])
