@@ -1,18 +1,1 @@
-{
-  "morning_time": "08:00",
-  "evening_time": "18:00",
-  "exercise_reminder_times": [
-    "10:00",
-    "15:00"
-  ],
-  "notify": {
-    "channel": "discord",
-    "discord_webhook_url": "https://discord.com/api/webhooks/1520013160290062376/Zc0XvayJ1eiAG0hxD8L7AXG2MQkRKpxKnvivO1KdpndqFiOKuIKxfPfv5VE-G0Yz4z_c",
-    "telegram_bot_token": "",
-    "telegram_chat_id": "",
-    "ntfy_topic": "",
-    "whatsapp_phone": "0662334433",
-    "whatsapp_callmebot_apikey": ""
-  },
-  "port": 8770
-}
+{"morning_time": "08:00", "evening_time": "18:00", "exercise_reminder_times": ["10:00", "15:00"], "notify": {"channel": "discord", "discord_webhook_url": "https://discord.com/api/webhooks/1520013160290062376/Zc0XvayJ1eiAG0hxD8L7AXG2MQkRKpxKnvivO1KdpndqFiOKuIKxfPfv5VE-G0Yz4z_c", "telegram_bot_token": "", "telegram_chat_id": "", "ntfy_topic": "", "whatsapp_phone": "0662334433", "whatsapp_callmebot_apikey": ""}, "port": 8770, "password": "securekneecare123"}

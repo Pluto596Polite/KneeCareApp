@@ -333,6 +333,9 @@ function medMatches(m,q){
   const hay=[m.name,m.active,m.category,m.purpose,m.instructions,m.warnings,...m.tags].join(' ').toLowerCase();
   return hay.includes(q);
 }
+function strengthScore(m){
+  try{return parseInt((m.schedule_code||'S0').replace('S',''))}catch(e){return 0}
+}
 function renderWiki(){
   const q=WIKI_Q.trim().toLowerCase();
   const meds=DATA.meds.medicines.filter(m=>medMatches(m,q));
@@ -343,8 +346,30 @@ function renderWiki(){
   h+=`<div style="margin-bottom:6px" class="sec-label">Filter by tag</div><div style="margin-bottom:18px">
      ${allTags().map(t=>`<span class="tag ${WIKI_TAG===t?'on':''}" data-tag="${esc(t)}">${esc(t)}</span>`).join('')}
      ${WIKI_TAG?`<span class="tag on" data-tag="">✕ clear</span>`:''}</div>`;
+  
+  // Painkiller Ranking & Food Categories (Improved Wiki feature)
+  if(!q && !WIKI_TAG) {
+    const pMeds=[...DATA.meds.medicines].sort((a,b)=>strengthScore(b)-strengthScore(a));
+    const withFood = pMeds.filter(m=>m.with_food);
+    const noFood = pMeds.filter(m=>!m.with_food);
+    h+=`<div class="grid cols2" style="margin-bottom:16px;">
+        <div class="card"><div class="card-h"><h3>💪 Strongest Painkillers</h3></div>
+        <div class="card-b">
+          <div class="note" style="margin-top:0;margin-bottom:10px">Ranked by schedule control (S6 > S5 > S4 > S3).</div>
+          ${pMeds.map(m=>`<div class="item" style="cursor:default;"><div style="flex:1"><div class="name">${esc(m.name)} <span class="badge sched">${m.schedule_code}</span></div><div class="meta">${esc(m.category)}</div></div></div>`).join('')}
+        </div></div>
+        <div class="card"><div class="card-h"><h3>🍽️ Food Categorization</h3></div>
+        <div class="card-b">
+          <div class="sec-label" style="margin-top:0">Take WITH Food</div>
+          ${withFood.map(m=>`<div class="item" style="cursor:default;padding:8px;margin-bottom:6px"><div class="name">${esc(m.name)}</div></div>`).join('')}
+          <div class="sec-label" style="margin-top:14px">Take WITHOUT Food (or not required)</div>
+          ${noFood.map(m=>`<div class="item" style="cursor:default;padding:8px;margin-bottom:6px"><div class="name">${esc(m.name)}</div></div>`).join('')}
+        </div></div>
+        </div>`;
+  }
+
   // medicine results
-  h+=`<div class="card"><div class="card-h"><h3>💊 Medicines</h3><span class="meta">${meds.length} result${meds.length!==1?'s':''}</span></div><div class="card-b">`;
+  h+=`<div class="card"><div class="card-h"><h3>💊 Medicines Directory</h3><span class="meta">${meds.length} result${meds.length!==1?'s':''}</span></div><div class="card-b">`;
   if(!meds.length)h+=`<div class="empty">No medicines match this search.</div>`;
   meds.forEach(m=>{
     h+=`<div class="item" style="cursor:default;align-items:flex-start">
@@ -372,22 +397,27 @@ function renderWiki(){
 function renderSettings(){
   const c=DATA.config,n=c.notify;
   return `<div class="grid cols2">
-   <div class="card"><div class="card-h"><h3>⏰ Reminder times</h3></div><div class="card-b">
+   <div class="card"><div class="card-h"><h3>⏰ Reminder times & Auth</h3></div><div class="card-b">
      <div class="field"><label class="f">Morning cycle</label><input id="mt" type="time" value="${c.morning_time}"></div>
      <div class="field"><label class="f">Evening cycle</label><input id="et" type="time" value="${c.evening_time}"></div>
-     <button class="btn" id="saveTimes">Save times</button></div></div>
-   <div class="card"><div class="card-h"><h3>📲 Notifications</h3><span class="badge sched">Discord</span></div><div class="card-b">
+     <div class="field"><label class="f">App Password (Optional Basic Auth)</label><input id="pwd" type="password" value="${c.password||''}"></div>
+     <button class="btn" id="saveTimes">Save settings</button></div></div>
+   <div class="card"><div class="card-h"><h3>📲 Notifications & Chatbot</h3><span class="badge sched">Discord</span></div><div class="card-b">
      <div class="field"><label class="f">Channel</label><select id="ch">
        <option value="discord" ${n.channel==='discord'?'selected':''}>Discord (recommended)</option>
        <option value="telegram" ${n.channel==='telegram'?'selected':''}>Telegram</option>
        <option value="ntfy" ${n.channel==='ntfy'?'selected':''}>ntfy.sh</option>
        <option value="whatsapp" ${n.channel==='whatsapp'?'selected':''}>WhatsApp (CallMeBot)</option></select></div>
-     <div class="field"><label class="f">Discord webhook URL</label>
+     <div class="field"><label class="f">Discord webhook URL (for simple push alerts)</label>
        <input id="wh" placeholder="https://discord.com/api/webhooks/…" value="${esc(n.discord_webhook_url||'')}"></div>
+     <div class="field"><label class="f">Discord Bot Token (for Chatbot & receiving commands)</label>
+       <input id="dbot" type="password" placeholder="MTE1..." value="${esc(n.discord_bot_token||'')}"></div>
+     <div class="field"><label class="f">Discord Channel ID (where bot will listen/reply)</label>
+       <input id="dchan" placeholder="1234567890..." value="${esc(n.discord_channel_id||'')}"></div>
      <div class="row"><button class="btn" id="saveNotif">Save</button>
        <button class="btn ghost" id="test">Send test</button>
        <button class="btn ghost" id="sendM">Preview morning list</button></div>
-     <div class="note">Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy URL. Paste here, Save, then Test.</div>
+     <div class="note">Discord Chatbot: provide both Bot Token & Channel ID. The app will poll the channel and reply to queries like "what is the following medication cycle", "which is strongest", or "what is [name] used for".</div>
    </div></div></div>`;
 }
 
@@ -409,8 +439,8 @@ function wire(){
     const ns=document.getElementById('wikiSearch');if(ns){ns.focus();ns.setSelectionRange(p,p);}};}
   if(g('prevDay'))g('prevDay').onclick=()=>{DAY=shift(DAY,-1);load();};
   if(g('nextDay'))g('nextDay').onclick=()=>{if(DAY<todayISO()){DAY=shift(DAY,1);load();}};
-  if(g('saveTimes'))g('saveTimes').onclick=async()=>{await api('/api/config',{morning_time:g('mt').value,evening_time:g('et').value});toast('Reminder times saved');load();};
-  if(g('saveNotif'))g('saveNotif').onclick=async()=>{await api('/api/config',{notify:{channel:g('ch').value,discord_webhook_url:g('wh').value}});toast('Notification settings saved');load();};
+  if(g('saveTimes'))g('saveTimes').onclick=async()=>{await api('/api/config',{morning_time:g('mt').value,evening_time:g('et').value,password:g('pwd').value});toast('Settings saved. Refresh to login.');load();};
+  if(g('saveNotif'))g('saveNotif').onclick=async()=>{await api('/api/config',{notify:{channel:g('ch').value,discord_webhook_url:g('wh').value,discord_bot_token:g('dbot').value,discord_channel_id:g('dchan').value}});toast('Notification & Chatbot settings saved');load();};
   if(g('test'))g('test').onclick=async()=>{if(g('test').disabled)return;g('test').disabled=true;toast('Sending test…');const r=await api('/api/test',{});toast(r.message);g('test').disabled=false;};
   if(g('sendM'))g('sendM').onclick=async()=>{if(g('sendM').disabled)return;g('sendM').disabled=true;toast('Sending…');const r=await api('/api/notify_cycle',{cycle:'morning'});toast(r.message);g('sendM').disabled=false;};
 }
