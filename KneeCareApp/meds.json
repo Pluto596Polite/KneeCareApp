@@ -14,7 +14,7 @@
       "critical": true,
       "with_food": true,
       "warnings": "Most important medicine to not miss. Tell the doctor about any unusual bleeding or bruising.",
-      "tags": ["Anticoagulant", "Take with food"]
+      "tags": ["compulsory", "with food", "blood thinner"]
     },
     {
       "id": "belanex",
@@ -31,7 +31,7 @@
       "critical": false,
       "with_food": false,
       "warnings": "May cause drowsiness/dizziness. Do not stop suddenly.",
-      "tags": ["Nerve pain", "Every day"]
+      "tags": ["compulsory", "pain"]
     },
     {
       "id": "colcibra",
@@ -45,7 +45,7 @@
       "critical": false,
       "with_food": true,
       "warnings": "Always take with food to protect the stomach. Once daily only.",
-      "tags": ["NSAID", "Take with food"]
+      "tags": ["optional", "inflammation", "with food"]
     },
     {
       "id": "xonoco",
@@ -62,7 +62,7 @@
       "critical": false,
       "with_food": true,
       "warnings": "Strong opioid. May cause drowsiness/constipation. Do not combine with extra codeine products without asking the doctor.",
-      "tags": ["Opioid", "Take with food"]
+      "tags": ["optional", "strong pain", "with food"]
     },
     {
       "id": "dynapayne",
@@ -79,7 +79,7 @@
       "critical": false,
       "with_food": true,
       "warnings": "Contains paracetamol AND codeine – do not take other paracetamol/codeine products at the same time. May cause drowsiness. Max 8 in 24h.",
-      "tags": ["Painkiller", "Take with food", "Max 8/day"]
+      "tags": ["optional", "pain", "with food"]
     }
   ]
 }

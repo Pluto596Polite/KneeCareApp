@@ -304,35 +304,85 @@ function renderToday(){
 
 /* ---------- HISTORY ---------- */
 function renderHistory(){
-  let h=`<div class="datebar"><button id="prevDayH">‹</button><strong id="dlH">${DAY===todayISO()?'Today':fmtDay(DAY)}</strong>
-    <button id="nextDayH">›</button></div>`;
+  let h=`<div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 16px; margin-bottom:16px; box-shadow:0 4px 12px rgba(0,0,0,0.05)">
+    <button id="prevDayH" class="btn ghost" style="font-size:20px; padding:4px 12px; background:var(--bg)">‹</button>
+    <div style="display:flex; flex-direction:column; align-items:center">
+      <span style="font-size:12px; font-weight:600; color:var(--brand); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px">Select Date</span>
+      <input type="date" id="historyDate" value="${DAY}" style="border:1px solid var(--border); border-radius:8px; background:var(--bg); font-weight:bold; font-size:16px; text-align:center; font-family:inherit; color:var(--ink); padding:8px 16px; outline:none; cursor:pointer; box-shadow:inset 0 1px 3px rgba(0,0,0,0.05)">
+    </div>
+    <button id="nextDayH" class="btn ghost" style="font-size:20px; padding:4px 12px; background:var(--bg)">›</button>
+  </div>`;
   
-  const events = DATA.events || [];
-  h += `<div class="card"><div class="card-h"><h3>📊 Pain Medication Log</h3><span class="meta">${events.length} entr${events.length===1?'y':'ies'}</span></div><div class="card-b">`;
+  const allEntries = [];
+  (DATA.events || []).forEach(e => allEntries.push({ ...e, type: 'prn' }));
   
-  if (!events.length) {
-    h += `<div class="empty">No pain medication logged for this day.</div>`;
+  if (DATA.state && DATA.state.doses) {
+    Object.keys(DATA.state.doses).forEach(k => {
+      const val = DATA.state.doses[k];
+      if (val) {
+        const [cycle, med_id] = k.split(':');
+        const ts = (typeof val === 'string') ? val : new Date(DAY).toISOString();
+        allEntries.push({ id: k, med_id: med_id, ts: ts, type: 'reg', cycle: cycle });
+      }
+    });
+  }
+  allEntries.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+
+  h += `<div class="card"><div class="card-h"><h3>📊 Medication Log</h3><span class="meta">${allEntries.length} entr${allEntries.length===1?'y':'ies'}</span></div>`;
+  
+  // Add medication section
+  h += `<div style="background:var(--bg); padding:12px 16px; border-bottom:1px solid var(--border); display:flex; gap:8px; align-items:center">
+    <span style="font-weight:600; font-size:13px; color:var(--ink2)">Manually Add:</span>
+    <select id="histAddMed" class="input" style="flex:1; padding:8px; font-size:14px; border-radius:6px; border:1px solid var(--border)">
+      ${DATA.meds.medicines.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}
+    </select>
+    <button id="histAddBtn" class="btn" style="padding:8px 16px; font-size:14px">+ Add</button>
+  </div><div class="card-b">`;
+  
+  if (!allEntries.length) {
+    h += `<div class="empty">No medication logged for this day.</div>`;
   } else {
     h += `<table style="width:100%;text-align:left;border-collapse:collapse;font-size:13.5px">
       <thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:10px">Time</th><th style="padding:10px">Medication</th><th style="padding:10px;text-align:right">Action</th></tr></thead>
       <tbody>`;
-    events.forEach(e => {
+    allEntries.forEach(e => {
       const time = new Date(e.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       const m = DATA.meds.medicines.find(x=>x.id===e.med_id);
       
-      let strengthStr = '';
-      if (m && m.schedule_code) {
-         const code = parseInt(m.schedule_code.replace('S', '')) || 0;
-         let strength = 1;
-         if (code >= 6) strength = 3;
-         else if (code >= 5) strength = 2;
-         strengthStr = `<div style="font-size:11.5px;color:var(--brand-700);margin-top:2px">Strength: ${strength}/3</div>`;
+      let tagHtml = '';
+      if (m && m.tags) {
+        m.tags.forEach(t => {
+          let bg = '#ccc';
+          const tl = t.toLowerCase();
+          if (tl === 'compulsory') bg = 'var(--danger)';
+          else if (tl === 'optional') bg = 'var(--brand)';
+          else if (tl === 'pain' || tl === 'strong pain') bg = '#f59e0b';
+          else if (tl === 'inflammation') bg = '#8b5cf6';
+          else if (tl === 'with food') bg = 'var(--good)';
+          else if (tl === 'blood thinner') bg = '#ec4899';
+          
+          tagHtml += `<span style="display:inline-block; margin-right:4px; font-size:9.5px; background:${bg}; color:white; padding:2px 6px; border-radius:12px; font-weight:600; text-transform:uppercase">${esc(t)}</span>`;
+        });
+        tagHtml = `<div style="margin-top:4px">${tagHtml}</div>`;
       }
       
+      let strengthStr = '';
+      if (m && m.schedule_code && e.type === 'prn') {
+         const code = parseInt(m.schedule_code.replace('S', '')) || 0;
+         let strength = 1, col = 'var(--good)';
+         if (code >= 6) { strength = 3; col = 'var(--danger)'; }
+         else if (code >= 5) { strength = 2; col = 'var(--brand)'; }
+         strengthStr = `<div style="margin-top:4px"><span style="font-size:10.5px;background:${col};color:white;padding:2px 6px;border-radius:4px;font-weight:600">Strength: ${strength}/3</span></div>`;
+      }
+      
+      const actionHtml = e.type === 'prn' 
+          ? `<button class="btn ghost" data-undodose="${e.id}" style="padding:4px 8px;font-size:11px;color:var(--danger)">Remove</button>`
+          : `<button class="btn ghost" data-undoreg="${e.cycle}:${e.med_id}" style="padding:4px 8px;font-size:11px;color:var(--danger)">Remove</button>`;
+
       h += `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:10px;color:var(--ink2)">${time}</td>
-        <td style="padding:10px;font-weight:600;color:var(--ink)">${m ? esc(m.name) : esc(e.med_id)}${strengthStr}</td>
-        <td style="padding:10px;text-align:right"><button class="btn ghost" data-undodose="${e.id}" style="padding:4px 8px;font-size:11px;color:var(--danger)">Remove</button></td>
+        <td style="padding:10px;color:var(--ink2);vertical-align:top">${time}</td>
+        <td style="padding:10px;font-weight:600;color:var(--ink);vertical-align:top">${m ? esc(m.name) : esc(e.med_id)}${strengthStr}${tagHtml}</td>
+        <td style="padding:10px;text-align:right;vertical-align:top">${actionHtml}</td>
       </tr>`;
     });
     h += `</tbody></table>`;
@@ -493,6 +543,27 @@ function wire(){
     await api('/api/remove_dose_event',{event_id:event_id});
     load();
   });
+  document.querySelectorAll('[data-undoreg]').forEach(el=>el.onclick=async(ev)=>{
+    ev.stopPropagation(); const key = el.dataset.undoreg;
+    const [c, id] = key.split(':');
+    DATA.state.doses[key] = false; render();
+    await api('/api/dose',{day:DAY, cycle:c, med_id:id, taken:false});
+    load();
+  });
+  if(g('histAddBtn')) g('histAddBtn').onclick = async () => {
+    const med_id = g('histAddMed').value;
+    const m = DATA.meds.medicines.find(x => x.id === med_id);
+    if (m.cycles && m.cycles[0] && m.cycles[0].regular) {
+      const c = m.cycles[0].cycle;
+      DATA.state.doses[`${c}:${med_id}`] = new Date().toISOString(); render();
+      await api('/api/dose',{day:DAY, cycle:c, med_id:med_id, taken:true});
+    } else {
+      const optimistic = {id: 'temp_'+Date.now(), med_id: med_id, ts: new Date().toISOString()};
+      if(!DATA.events) DATA.events=[]; DATA.events.unshift(optimistic); render();
+      await api('/api/log_dose',{day:DAY, med_id:med_id});
+    }
+    load();
+  };
   document.querySelectorAll('[data-ex]').forEach(el=>el.onclick=async(ev)=>{
     ev.stopPropagation();const id=el.dataset.ex,cur=!!DATA.state.exercises[id];
     DATA.state.exercises[id]=!cur;render();
@@ -506,6 +577,7 @@ function wire(){
   if(g('nextDay'))g('nextDay').onclick=()=>{if(DAY<todayISO()){DAY=shift(DAY,1);load();}};
   if(g('prevDayH'))g('prevDayH').onclick=()=>{DAY=shift(DAY,-1);load();};
   if(g('nextDayH'))g('nextDayH').onclick=()=>{if(DAY<todayISO()){DAY=shift(DAY,1);load();}};
+  if(g('historyDate'))g('historyDate').onchange=(e)=>{DAY=e.target.value;load();};
   if(g('saveTimes'))g('saveTimes').onclick=async()=>{await api('/api/config',{morning_time:g('mt').value,evening_time:g('et').value,password:g('pwd').value});toast('Settings saved. Refresh to login.');load();};
   if(g('saveNotif'))g('saveNotif').onclick=async()=>{await api('/api/config',{notify:{channel:g('ch').value,discord_webhook_url:g('wh').value,discord_bot_token:g('dbot').value,discord_channel_id:g('dchan').value}});toast('Notification & Chatbot settings saved');load();};
   if(g('test'))g('test').onclick=async()=>{if(g('test').disabled)return;g('test').disabled=true;toast('Sending test…');const r=await api('/api/test',{});toast(r.message);g('test').disabled=false;};

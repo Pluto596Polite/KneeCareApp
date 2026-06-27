@@ -76,7 +76,7 @@ class SqliteDB:
 
     def day_state(self, day):
         with get_db() as conn:
-            doses = {f"{r['cycle']}:{r['med_id']}": bool(r["taken"])
+            doses = {f"{r['cycle']}:{r['med_id']}": r["ts"] if r["taken"] else False
                      for r in conn.execute("SELECT * FROM dose_log WHERE day=?", (day,))}
             ex = {r["ex_id"]: bool(r["done"])
                   for r in conn.execute("SELECT * FROM exercise_log WHERE day=?", (day,))}
@@ -130,7 +130,7 @@ class MongoDB:
         )
         
     def day_state(self, day):
-        doses = {f"{r['cycle']}:{r['med_id']}": bool(r.get("taken")) 
+        doses = {f"{r['cycle']}:{r['med_id']}": r.get("ts") if r.get("taken") else False 
                  for r in self.db.doses.find({"day": day})}
         ex = {r["ex_id"]: bool(r.get("done"))
               for r in self.db.exercises.find({"day": day})}
@@ -351,6 +351,36 @@ def discord_chatbot_loop():
                     hour = datetime.now().hour
                     cycle = "evening" if hour >= 12 else "morning"
                     reply = build_cycle_message(cycle)
+                elif "history" in content or "entries" in content or "log" in content:
+                    target_day = None
+                    if "yesterday" in content:
+                        from datetime import timedelta
+                        target_day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+                    elif "today" in content:
+                        target_day = datetime.now().strftime("%Y-%m-%d")
+                    else:
+                        import re
+                        match = re.search(r'\d{4}-\d{2}-\d{2}', content)
+                        if match: target_day = match.group(0)
+                    
+                    if not target_day:
+                        reply = "Please specify a date (e.g., 'history today', 'entries yesterday', or 'log for 2026-06-25')."
+                    else:
+                        state = get_db_impl().day_state(target_day)
+                        events = get_db_impl().get_dose_events(target_day)
+                        all_e = [{"ts": e["ts"], "med_id": e["med_id"]} for e in events]
+                        for k, v in state.get("doses", {}).items():
+                            if v:
+                                all_e.append({"ts": v if isinstance(v, str) else target_day+"T00:00", "med_id": k.split(':')[1]})
+                        all_e.sort(key=lambda x: x["ts"])
+                        if not all_e:
+                            reply = f"No medications logged on {target_day}."
+                        else:
+                            meds = load_json("meds.json")["medicines"]
+                            m_map = {m["id"]: m["name"] for m in meds}
+                            reply = f"**Entries for {target_day}**:\n" + "\n".join(
+                                [f"- {e['ts'].split('T')[1][:5] if 'T' in e['ts'] else ''} : {m_map.get(e['med_id'], e['med_id'])}" for e in all_e]
+                            )
                 elif "strongest" in content or "rank" in content:
                     meds = load_json("meds.json")["medicines"]
                     def strength(m):
@@ -369,7 +399,7 @@ def discord_chatbot_loop():
                     if not found:
                         reply = "I didn't recognize that medication. Try asking about Axolta, Belanex, Colcibra, Xonoco, or Dynapayne."
                 elif "help" in content or "hello" in content or "hi" in content:
-                    reply = "Hello! You can ask me:\n- 'what is the following medication cycle'\n- 'which is strongest'\n- 'what is [medication name] used for'."
+                    reply = "Hello! You can ask me:\n- 'what is the following medication cycle'\n- 'what are the entries for today'\n- 'show history for yesterday'\n- 'which is strongest'\n- 'what is [medication name] used for'."
                 
                 if reply:
                     post_url = f"https://discord.com/api/v10/channels/{ch_id}/messages"
