@@ -1,0 +1,29 @@
+# fly.io config for KneeCare. `app` and `primary_region` are set by `fly launch`.
+# The machine stays always-on (min_machines_running = 1, auto_stop = false) so the
+# Discord poller never sleeps.
+app = "kneecare"
+primary_region = "jnb"   # Johannesburg; change to your nearest region
+
+[build]
+
+[env]
+  PORT = "8770"
+  KNEECARE_DATA_DIR = "/data"
+  TZ = "Africa/Johannesburg"
+  GOOGLE_GENAI_USE_VERTEXAI = "FALSE"
+
+# Persistent disk for the SQLite database — survives deploys, restarts, crashes.
+[mounts]
+  source = "kneecare_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8770
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

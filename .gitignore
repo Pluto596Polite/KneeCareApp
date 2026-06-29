@@ -9,6 +9,13 @@ KneeCareApp/data/*.db-shm
 KneeCareApp/data/*.bak-*
 KneeCareApp/data/.migrated_from_home
 
+# Python virtualenv for the optional assistant (google-adk)
+KneeCareApp/.venv/
+
 # Python caches
 __pycache__/
 *.pyc
+
+# Stray test database + local dev helper (not part of the app)
+KneeCareApp/test.db
+seq_editor.py

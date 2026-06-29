@@ -17,9 +17,36 @@ from datetime import datetime, date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+
+def _load_env_file(path):
+    """Load simple `export KEY=value` lines from a local env file into os.environ
+    (real environment variables win). Lets the app pick up secrets like
+    DISCORD_BOT_TOKEN / GOOGLE_API_KEY no matter how it is launched — terminal,
+    start.command, or an IDE like PyCharm."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export "):]
+                if "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print("[env] could not load", path, ":", e)
+
+_load_env_file(os.path.join(BASE, "agent.env"))
+
 # Persistent storage lives inside this project folder so every logged entry
 # survives restarts and is not tied to any cloud service or the home directory.
-DATA_DIR = os.path.join(BASE, "data")
+DATA_DIR = os.environ.get("KNEECARE_DATA_DIR") or os.path.join(BASE, "data")
 DB_PATH = os.path.join(DATA_DIR, "kneecare.db")
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -150,8 +177,8 @@ def send_notification(text):
     ch = cfg.get("channel", "discord")
     try:
         if ch == "discord":
-            # Prefer Bot Token if available
-            tok = cfg.get("discord_bot_token", "").strip()
+            # Prefer Bot Token if available (env wins, so it stays out of config.json)
+            tok = (os.environ.get("DISCORD_BOT_TOKEN") or cfg.get("discord_bot_token", "")).strip()
             ch_id = cfg.get("discord_channel_id", "").strip()
             if tok and ch_id:
                 url = f"https://discord.com/api/v10/channels/{ch_id}/messages"
@@ -164,7 +191,7 @@ def send_notification(text):
                 urllib.request.urlopen(req, timeout=15)
                 return True, "Sent via Discord Bot."
             
-            url = cfg.get("discord_webhook_url", "").strip()
+            url = (os.environ.get("DISCORD_WEBHOOK_URL") or cfg.get("discord_webhook_url", "")).strip()
             if not url:
                 return False, "No Discord webhook URL set (open Settings)."
             data = json.dumps({"content": text}).encode()
@@ -293,10 +320,11 @@ def scheduler_loop():
 
 def discord_chatbot_loop():
     last_msg_id = None
+    announced = False
     while True:
         try:
             cfg = get_config().get("notify", {})
-            tok = cfg.get("discord_bot_token", "").strip()
+            tok = (os.environ.get("DISCORD_BOT_TOKEN") or cfg.get("discord_bot_token", "")).strip()
             ch_id = cfg.get("discord_channel_id", "").strip()
             if not tok or not ch_id:
                 time.sleep(10)
@@ -309,7 +337,26 @@ def discord_chatbot_loop():
             })
             res = urllib.request.urlopen(req, timeout=10)
             msgs = json.loads(res.read())
-            
+
+            if not announced:
+                announced = True
+                agent_on = False
+                try:
+                    import kneecare_agent
+                    agent_on = kneecare_agent.available()
+                except Exception:
+                    pass
+                mode = "natural-language (Gemini)" if agent_on else "keyword fallback"
+                print(f"[discord] bot online, polling channel {ch_id} — {mode} mode")
+                try:
+                    send_url = f"https://discord.com/api/v10/channels/{ch_id}/messages"
+                    body = json.dumps({"content": f"🟢 KneeCare assistant is online ({mode})."}).encode()
+                    urllib.request.urlopen(urllib.request.Request(send_url, data=body, headers={
+                        "Authorization": f"Bot {tok}", "Content-Type": "application/json",
+                        "User-Agent": "DiscordBot (https://kneecare.local, 1.0)"}), timeout=10)
+                except Exception as e:
+                    print("[discord] online ping failed:", repr(e))
+
             if msgs and not last_msg_id:
                 last_msg_id = msgs[0]["id"]
             
@@ -459,7 +506,7 @@ def discord_chatbot_loop():
                 
                 if reply:
                     post_url = f"https://discord.com/api/v10/channels/{ch_id}/messages"
-                    data = json.dumps({"content": reply}).encode()
+                    data = json.dumps({"content": reply[:1990]}).encode()
                     req_post = urllib.request.Request(post_url, data=data, headers={
                         "Authorization": f"Bot {tok}",
                         "Content-Type": "application/json",
@@ -467,12 +514,12 @@ def discord_chatbot_loop():
                     })
                     urllib.request.urlopen(req_post, timeout=10)
         except Exception as e:
-            pass
+            print("[discord] loop error:", repr(e))
         time.sleep(5)
 
 class Handler(BaseHTTPRequestHandler):
     def do_AUTH(self):
-        pwd = get_config().get("password", "")
+        pwd = os.environ.get("KNEECARE_PASSWORD") or get_config().get("password", "")
         if not pwd: return True
         auth = self.headers.get("Authorization")
         if not auth:

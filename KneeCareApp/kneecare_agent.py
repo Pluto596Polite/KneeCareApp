@@ -149,7 +149,7 @@ def _build_runner():
     # google-genai accepts GEMINI_API_KEY too; ADK reads GOOGLE_API_KEY — bridge it.
     if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
         os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
-    model = os.environ.get("KNEECARE_MODEL", "gemini-2.0-flash")
+    model = os.environ.get("KNEECARE_MODEL", "gemini-2.5-flash")
     agent = Agent(
         name="kneecare",
         model=model,

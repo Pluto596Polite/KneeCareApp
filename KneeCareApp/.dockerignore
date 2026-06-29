@@ -1,0 +1,16 @@
+# Never ship secrets, local data, the venv, or caches into the image.
+.venv/
+data/
+agent.env
+agent.env.example
+__pycache__/
+*.pyc
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak-*
+test_*.py
+test.db
+.git/
+.idea/

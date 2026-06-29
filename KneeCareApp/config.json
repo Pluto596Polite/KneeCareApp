@@ -7,15 +7,15 @@
   ],
   "notify": {
     "channel": "discord",
-    "discord_webhook_url": "https://discord.com/api/webhooks/1520013160290062376/Zc0XvayJ1eiAG0hxD8L7AXG2MQkRKpxKnvivO1KdpndqFiOKuIKxfPfv5VE-G0Yz4z_c",
+    "discord_webhook_url": "",
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "ntfy_topic": "",
-    "whatsapp_phone": "0662334433",
+    "whatsapp_phone": "",
     "whatsapp_callmebot_apikey": "",
     "discord_bot_token": "",
     "discord_channel_id": "1520013046268035112"
   },
   "port": 8770,
-  "password": "Adriaan123"
+  "password": ""
 }
