@@ -1,0 +1,14 @@
+# Secrets — never commit the Gemini API key
+KneeCareApp/agent.env
+
+# Local persistent data (lives on this machine; do not push personal logs)
+KneeCareApp/data/*.db
+KneeCareApp/data/*.db-journal
+KneeCareApp/data/*.db-wal
+KneeCareApp/data/*.db-shm
+KneeCareApp/data/*.bak-*
+KneeCareApp/data/.migrated_from_home
+
+# Python caches
+__pycache__/
+*.pyc

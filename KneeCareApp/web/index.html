@@ -96,6 +96,7 @@
   .anim{width:100%;max-width:260px;background:var(--surface2);border:1px solid var(--border);border-radius:11px;
         --fig:#64748b;--acc:#4f46e5}
   .anim svg{display:block;width:100%;height:auto}
+  video.anim{display:block;width:100%;height:auto;object-fit:cover}
   .ex-card{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:center;padding:14px;border:1px solid var(--border);
         border-radius:12px;margin-bottom:12px;background:var(--surface);transition:.13s}
   .ex-card:hover{box-shadow:var(--shadow)}
@@ -403,8 +404,11 @@ function renderExercises(){
   let h=`<div class="note" style="margin-bottom:16px">Guidance: exercise 20–30 minutes, 2–3× a day during early recovery. Do exercises lying on your back with legs slightly apart. Animations are illustrative — follow your physiotherapist's technique.</div>`;
   ex.forEach(e=>{const d=!!DATA.state.exercises[e.id];
     const src=e.source.startsWith('booklet')?'<span class="src" style="background:var(--good-weak);color:var(--good)">✓ From physio booklet</span>':`<span class="src">⚠ Standard set — confirm with booklet/physio</span>`;
+    const visual=e.video
+      ?`<video class="anim" src="/assets/${encodeURIComponent(e.video)}" muted loop autoplay playsinline controls preload="auto"></video>`
+      :`<div class="anim" data-anim="${e.id}"></div>`;
     h+=`<div class="ex-card ${d?'done':''}">
-      <div class="anim" data-anim="${e.id}"></div>
+      ${visual}
       <div class="ex-info"><h4>${esc(e.name)}</h4>
         <div class="meta"><span class="qty">${esc(e.reps)}</span></div>
         <div class="meta" style="margin-top:6px">${esc(e.detail)}</div>

@@ -1,1 +1,9 @@
-pymongo[srv]==4.6.1
+# The CORE KneeCare app runs entirely on the Python standard library that ships
+# with macOS — no third-party packages, no billing, no cloud account, no sign-up.
+#
+# OPTIONAL — only for the natural-language Discord assistant (kneecare_agent.py):
+#   pip3 install google-adk
+# It uses the FREE Gemini tier (Google AI Studio). Set GOOGLE_API_KEY (free,
+# no billing). Without it, the Discord bot still works using built-in replies.
+#
+# google-adk

@@ -43,6 +43,31 @@ Notes:
 *Don't use Discord?* Settings also supports **Telegram**, **ntfy.sh**, and
 **WhatsApp via CallMeBot** (free, sends to 066 233 4433). See `config.json`.
 
+## 2c. Ask the Discord assistant in plain English (optional, free)
+A natural-language assistant (Google **Agent Development Kit** + the free **Gemini**
+tier) can read your Discord messages, work out what you mean — no fixed commands —
+and answer about the medicines' **uses** and **dose schedule**, e.g.:
+- *"what's the strongest painkiller and when does she take it?"*
+- *"can mom take dynapayne with the codeine one?"*
+- *"what should she take this evening, and what's each for?"*
+- *"what has she logged today?"*
+
+It runs **free**: the Gemini free tier needs no billing. Setup (one time):
+1. **Bot token (so it can read messages):** Discord → [Developer Portal](https://discord.com/developers/applications)
+   → *New Application* → **Bot** → *Reset Token* → copy it. Under **Bot**, turn on
+   **Message Content Intent**. Invite the bot to your server (OAuth2 → URL Generator
+   → scopes `bot`, permission *Send Messages* → open the URL). Paste the token into
+   `config.json` → `notify.discord_bot_token`, and put your channel's ID in
+   `notify.discord_channel_id` (already set).
+2. **Free Gemini key:** get one at <https://aistudio.google.com/apikey> (no billing).
+   Copy `agent.env.example` → `agent.env` and paste the key. `start.command` loads it.
+3. **Install the assistant package once:** `pip3 install google-adk`
+4. Start the app and just message the channel normally.
+
+Skip any of these and the app still runs — the bot falls back to simple keyword
+replies, and nothing costs money. Writes (`add`/`remove`/`edit` a dose) stay exact,
+deterministic commands; only the questions go to the assistant.
+
 ## 3. Daily use
 The app has five pages (sidebar on desktop, top bar on phone):
 - **Today** — dashboard with progress cards; tap each medicine and exercise to tick it off.
@@ -68,11 +93,30 @@ The app has five pages (sidebar on desktop, top bar on phone):
 and pharmacist. Don't double up paracetamol/codeine products (Dynapayne already
 contains both).
 
+## Where your data lives (fully local, persistent)
+Everything runs on **this Mac only** — no Render.com, no cloud database, no
+account, no pip install (just the Python that ships with macOS).
+
+Every logged entry (including ones added through the Discord bot) is written to a
+local SQLite database **inside this project folder**:
+
+```
+KneeCareApp/data/kneecare.db
+```
+
+Because it's a file on disk, entries **persist** whether the app is running or
+not — closing the Terminal, stopping the service, or rebooting does not lose
+anything. To back it up, copy that one file. *(On first run after this change,
+any older data from the previous `~/.kneecare` location is imported automatically,
+and a one-time `.bak-…` copy of the prior project DB is kept beside it.)*
+
 ## Editing content
 All content lives in plain files you can open and edit:
 - `meds.json` — medicines & cycles
 - `exercises.json` — exercise checklist (some entries are the *standard* knee set —
-  marked ⚠ — please confirm/adjust against the printed physio booklet)
+  marked ⚠ — please confirm/adjust against the printed physio booklet). Each entry
+  may name a `video` file served from the `Assets/` folder; the Exercises page
+  plays it, otherwise it falls back to the built-in animated diagram.
 - `config.json` — reminder times, port, notification channel
 
 ## Note on the exercises

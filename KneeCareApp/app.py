@@ -4,6 +4,7 @@ KneeCare - local medicine & exercise tracker for Mom's knee replacement recovery
 """
 import json
 import os
+import shutil
 import sqlite3
 import threading
 import time
@@ -16,9 +17,33 @@ from datetime import datetime, date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(os.path.expanduser("~"), ".kneecare")
+# Persistent storage lives inside this project folder so every logged entry
+# survives restarts and is not tied to any cloud service or the home directory.
+DATA_DIR = os.path.join(BASE, "data")
 DB_PATH = os.path.join(DATA_DIR, "kneecare.db")
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# One-time import of data from the previous home-directory location (~/.kneecare),
+# so any entries logged before this move are kept. Runs once, then leaves a marker.
+_OLD_DB = os.path.join(os.path.expanduser("~"), ".kneecare", "kneecare.db")
+def migrate_old_db():
+    marker = os.path.join(DATA_DIR, ".migrated_from_home")
+    if os.path.exists(marker) or not os.path.exists(_OLD_DB):
+        return
+    try:
+        old_size = os.path.getsize(_OLD_DB)
+        new_size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
+        if old_size > new_size:
+            if os.path.exists(DB_PATH):
+                backup = DB_PATH + ".bak-" + datetime.now().strftime("%Y%m%d%H%M%S")
+                shutil.copy2(DB_PATH, backup)
+                print(f"[migrate] backed up existing project DB -> {backup}")
+            shutil.copy2(_OLD_DB, DB_PATH)
+            print(f"[migrate] imported existing log data from {_OLD_DB}")
+        with open(marker, "w", encoding="utf-8") as f:
+            f.write(datetime.now().isoformat())
+    except Exception as e:
+        print("[migrate] skipped:", e)
 
 def load_json(name):
     with open(os.path.join(BASE, name), "r", encoding="utf-8") as f:
@@ -112,71 +137,12 @@ class SqliteDB:
         with get_db() as conn:
             conn.execute("UPDATE dose_events SET qty=? WHERE id=?", (qty, event_id))
 
-class MongoDB:
-    def __init__(self, uri):
-        from pymongo import MongoClient
-        self.client = MongoClient(uri)
-        self.db = self.client.get_database() # Uses default DB from URI, or you can specify name
-    
-    def init_db(self):
-        # MongoDB creates collections automatically
-        pass
-        
-    def set_dose(self, day, cycle, med_id, taken):
-        self.db.doses.update_one(
-            {"day": day, "cycle": cycle, "med_id": med_id},
-            {"$set": {"taken": 1 if taken else 0, "ts": datetime.now().isoformat()}},
-            upsert=True
-        )
-        
-    def set_exercise(self, day, ex_id, done):
-        self.db.exercises.update_one(
-            {"day": day, "ex_id": ex_id},
-            {"$set": {"done": 1 if done else 0, "ts": datetime.now().isoformat()}},
-            upsert=True
-        )
-        
-    def day_state(self, day):
-        doses = {f"{r['cycle']}:{r['med_id']}": r.get("ts") if r.get("taken") else False 
-                 for r in self.db.doses.find({"day": day})}
-        ex = {r["ex_id"]: bool(r.get("done"))
-              for r in self.db.exercises.find({"day": day})}
-        return {"doses": doses, "exercises": ex}
-        
-    def already_sent(self, key):
-        return self.db.sent_log.find_one({"key": key}) is not None
-        
-    def mark_sent(self, key):
-        self.db.sent_log.update_one({"key": key}, {"$set": {"ts": datetime.now().isoformat()}}, upsert=True)
-
-    def add_dose_event(self, day, med_id, qty=1):
-        import uuid
-        self.db.dose_events.insert_one({
-            "id": str(uuid.uuid4()), "day": day, "med_id": med_id, 
-            "ts": datetime.now().isoformat(timespec="seconds"), "qty": qty
-        })
-        
-    def remove_dose_event(self, event_id):
-        self.db.dose_events.delete_one({"id": event_id})
-        
-    def get_dose_events(self, day):
-        rows = self.db.dose_events.find({"day": day}).sort("ts", -1)
-        return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"], "qty": r.get("qty", 1)} for r in rows]
-
-    def update_dose_event_qty(self, event_id, qty):
-        self.db.dose_events.update_one({"id": event_id}, {"$set": {"qty": qty}})
-
-# Global DB instance
+# Single local SQLite database — no cloud DB, no external service, no sign-up.
 _db_instance = None
 def get_db_impl():
     global _db_instance
     if _db_instance is None:
-        cfg = get_config()
-        uri = os.environ.get("MONGO_URI") or cfg.get("mongo_uri")
-        if uri:
-            _db_instance = MongoDB(uri)
-        else:
-            _db_instance = SqliteDB()
+        _db_instance = SqliteDB()
     return _db_instance
 
 def send_notification(text):
@@ -354,10 +320,27 @@ def discord_chatbot_loop():
                 
                 if msg.get("author", {}).get("bot"): continue
                 
-                content = msg.get("content", "").lower()
+                raw = msg.get("content", "")
+                content = raw.lower()
                 reply = ""
-                
-                if "what" in content and "cycle" in content:
+
+                # Natural-language understanding first (Gemini via Google ADK).
+                # Skipped for explicit write actions, which stay deterministic.
+                # Falls through silently if the agent isn't configured.
+                if not content.startswith(("add ", "remove ", "edit ")):
+                    try:
+                        import kneecare_agent
+                        ans = kneecare_agent.answer(raw, session_id=f"discord-{ch_id}")
+                        if ans:
+                            reply = ans
+                    except Exception as e:
+                        print("[agent] error:", e)
+
+                # Deterministic handlers below — they run only when the agent did
+                # not answer (keyword fallback), and always for add/remove/edit.
+                if reply:
+                    pass
+                elif "what" in content and "cycle" in content:
                     hour = datetime.now().hour
                     cycle = "evening" if hour >= 12 else "morning"
                     reply = build_cycle_message(cycle)
@@ -526,6 +509,14 @@ class Handler(BaseHTTPRequestHandler):
         if p.path in ("/", "/index.html"):
             with open(os.path.join(BASE, "web", "index.html"), "rb") as f:
                 return self._send(200, f.read(), "text/html; charset=utf-8")
+        if p.path.startswith("/assets/"):
+            name = urllib.parse.unquote(p.path[len("/assets/"):])
+            assets_dir = os.path.abspath(os.path.join(BASE, "Assets"))
+            fpath = os.path.abspath(os.path.join(assets_dir, name))
+            if fpath.startswith(assets_dir + os.sep) and fpath.endswith(".mp4") and os.path.isfile(fpath):
+                with open(fpath, "rb") as f:
+                    return self._send(200, f.read(), "video/mp4")
+            return self._send(404, {"error": "not found"})
         if p.path != "/" and "." in p.path:
             name = urllib.parse.unquote(p.path.lstrip("/"))
             types = {".js": "application/javascript", ".css": "text/css",
@@ -602,6 +593,7 @@ def get_lan_ip():
     finally: s.close()
 
 def main():
+    migrate_old_db()
     get_db_impl().init_db()
     port = int(os.environ.get("PORT", get_config().get("port", 8770)))
     threading.Thread(target=scheduler_loop, daemon=True).start()
