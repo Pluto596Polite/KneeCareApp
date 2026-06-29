@@ -106,7 +106,7 @@ class SqliteDB:
     def get_dose_events(self, day):
         with get_db() as conn:
             rows = conn.execute("SELECT * FROM dose_events WHERE day=? ORDER BY ts DESC", (day,)).fetchall()
-            return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"], "qty": r.get("qty") or 1} for r in rows]
+            return [{"id": r["id"], "day": r["day"], "med_id": r["med_id"], "ts": r["ts"], "qty": dict(r).get("qty") or 1} for r in rows]
 
     def update_dose_event_qty(self, event_id, qty):
         with get_db() as conn:
